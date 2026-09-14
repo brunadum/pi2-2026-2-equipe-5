@@ -43,6 +43,6 @@
 
 ## Critérios de aceitação
 
-- [ ] Todos os casos de uso (UC01–UC05) têm ao menos uma rota mapeada
-- [ ] Cada rota indica o método HTTP correto (GET/POST/PATCH/PUT)
-- [ ] Arquivo `docs/api/mapeamento-casos-de-uso-rotas.md` commitado
+- [x] Todos os casos de uso (UC01–UC05) têm ao menos uma rota mapeada
+- [x] Cada rota indica o método HTTP correto (GET/POST/PATCH/PUT)
+- [x] Arquivo `docs/api/mapeamento-casos-de-uso-rotas.md` commitado
