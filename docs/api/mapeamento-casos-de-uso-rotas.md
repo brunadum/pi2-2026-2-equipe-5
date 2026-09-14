@@ -21,7 +21,7 @@
 | Método | Rota |
 |---|---|
 | `GET` | `/api/clientes/{id}/saldo` |
-| `POST` | `/api/vendas` (retorna `422` com `motivo` quando limite excedido ou parcelas atrasadas) |
+| `POST` | `/api/vendas` (retorna `422` com `motivo` quando o limite for excedido ou houver parcelas atrasadas) |
 | `PATCH` | `/api/vendas/{id}/autorizar` (gerente autoriza venda rejeitada) |
 
 ## UC04 — Registrar Pagamentos e Baixas
@@ -31,15 +31,15 @@
 | `GET` | `/api/clientes/{id}/parcelas` |
 | `PATCH` | `/api/parcelas/{id}/pagamento` |
 | `GET` | `/api/parcelas/{id}/comprovante` |
-| `GET` / `PUT` | `/api/configuracoes/juros` (restrito ao dono) |
+| `GET` / `PUT` | `/api/configuracoes/juros` (restrito ao gerente) |
 
 ## UC05 — Visualizar Dashboard Financeiro
 
 | Método | Rota |
 |---|---|
-| `GET` | `/api/dashboard/faturamento?periodo=` |
-| `GET` | `/api/dashboard/metricas-risco` |
-| `GET` | `/api/dashboard/parcelas?status=vencidas\|proximas` |
+| `GET` | `/api/dashboard/faturamento?periodo=` (restrito ao gerente) |
+| `GET` | `/api/dashboard/metricas-risco` (restrito ao gerente) |
+| `GET` | `/api/dashboard/parcelas?status=vencidas\|proximas` (restrito ao gerente) |
 
 ## Critérios de aceitação
 
