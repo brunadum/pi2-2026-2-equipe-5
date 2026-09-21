@@ -16,7 +16,14 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
+from django.http import JsonResponse
+
+def teste(request):
+    return JsonResponse({
+        "mensagem":"Sistema funcionado "
+    })
 
 urlpatterns = [
+    path('',teste),
     path('admin/', admin.site.urls),
 ]
