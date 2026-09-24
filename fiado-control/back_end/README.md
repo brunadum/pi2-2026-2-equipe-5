@@ -54,9 +54,26 @@ Entre na pasta:
 cd back_end
 ```
 
-Execute:
+Crie o ambiente virtual (uma vez, dentro de `back_end`):
 
 ```bash
+python -m venv .venv
+```
+
+Ative o ambiente (a cada terminal novo):
+
+```bash
+# Windows (PowerShell)
+.\.venv\Scripts\Activate.ps1
+
+# Linux/macOS
+source .venv/bin/activate
+```
+
+Instale as dependências e execute:
+
+```bash
+pip install -r requirements.txt
 python manage.py runserver
 ```
 
