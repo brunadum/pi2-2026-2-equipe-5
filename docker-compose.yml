@@ -1,27 +1,31 @@
 services:
+  frontend:
+    build:
+      context: ./fiado-control/front_end
+      dockerfile: Dockerfile
+    container_name: fiado-control-frontend
+    ports:
+      - "80:80"
+    networks:
+      - fiado-control-network
+    depends_on:
+      - backend
 
-frontend:
-build:
-context: ./front_end
-dockerfile: Dockerfile
-container_name: fiado-control-frontend
-ports:
-- "80:80"
-networks:
-- fiado-control-network
-depends_on:
-- backend
-
-backend:
-build:
-context: ./back_end
-dockerfile: Dockerfile
-container_name: fiado-control-backend
-ports:
-- "8000:8000"
-networks:
-- fiado-control-network
+  backend:
+    build:
+      context: ./fiado-control/back_end
+      dockerfile: Dockerfile
+    container_name: fiado-control-backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - path: ./fiado-control/.env
+        required: false
+    volumes:
+      - ./fiado-control/back_end:/app
+    networks:
+      - fiado-control-network
 
 networks:
-fiado-control-network:
-driver: bridge
+  fiado-control-network:
+    driver: bridge
