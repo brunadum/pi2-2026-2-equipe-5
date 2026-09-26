@@ -1,3 +1,5 @@
+from django.contrib.auth import decorators
+from core import dados_fixos
 import _json
 from django.http import response
 from django.contrib.auth import decorators
@@ -6,10 +8,11 @@ import json
 import itertools
 from datetime import date
 
+
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 
-from .dados_fixos import CLIENTES
+from .dados_fixos import CLIENTES, PARCELAS_PENDENTES
 
 CAMPOS_OBRIGATORIOS = ("nome", "cpf", "telefone", "limite_credito")
 
@@ -132,5 +135,50 @@ def _registrar_venda(request):
 def vendas(request):
     if request.method == "POST":
         return _registrar_venda(request)
+    
+    return _erro("metodo_nao_permitido", "Método não permitido nesta rota", 405)
+
+
+CAMPOS_OBRIGATORIOS_PAGAMENTO = ("id_pagamento", "valor_recebido")
+
+def _buscar_parcela(id_venda, id_pagamento):
+    for parcela in PARCELAS_PENDENTES:
+        if parcela["id_venda"] == id_venda and parcela["id_pagamento"] == id_pagamento:
+            return parcela
+    return None 
+
+def _registrar_pagamento(request, id_venda):
+    if not any(p["id_venda"] == id_venda for p in PARCELAS_PENDENTES):
+        return _erro("venda_nao_encontrada", "Venda não encontrada", 404)
+
+    try:
+        dados = json.loads(request.body)
+    except (ValueError, UnicodeDecodeError):
+        dados = None
+    
+    if not isinstance(dados, dict):
+        return _erro("json_invalido", "O corpo da requisição não é um JSON válido", 400)
+
+    for campo in CAMPOS_OBRIGATORIOS_PAGAMENTO:
+        if dados.get(campo) in (None, "", []):
+            return _erro("campo_obrigatorio", f"Campo obrigatório ausente: {campo}", 400)
+    
+    parcela = _buscar_parcela(id_venda, dados["id_pagamento"])
+    if not parcela:
+        return _erro("pagamento_nao_encontrada", "Parcela não encontrada para esta venda", 404)
+
+    resposta = {
+        "id_pagamento": parcela["id_pagamento"],
+        "status": "pago",
+        "data_pagamento": date.today().isoformat(),
+        "saldo_devedor_cliente": parcela["saldo_devedor_cliente"], 
+    }
+    return _json(resposta, status=200)
+
+
+@csrf_exempt
+def pagamentos(request, id_venda):
+    if request.method == "POST":
+        return _registrar_pagamento(request, id_venda)
     
     return _erro("metodo_nao_permitido", "Método não permitido nesta rota", 405)

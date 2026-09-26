@@ -35,3 +35,20 @@ CLIENTES = [
         "ativo": True,
     },
 ]
+
+PARCELAS_PENDENTES = [
+    {
+        "id_venda": 1,
+        "id_pagamento": 10,
+        "id_cliente": 1,
+        "valor_parcela": 90.00,
+        "saldo_devedor_cliente": 410.00,
+    },
+    {
+        "id_venda": 2,
+        "id_pagamento": 11,
+        "id_cliente": 2,
+        "valor_parcela": 150.00,
+        "saldo_devedor_cliente": 150.00,
+    },
+]
