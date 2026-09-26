@@ -1,4 +1,10 @@
+import _json
+from django.http import response
+from django.contrib.auth import decorators
+from django.contrib.auth import decorators
 import json
+import itertools
+from datetime import date
 
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
@@ -86,4 +92,45 @@ def clientes(request):
     if request.method == "POST":
         return _cadastrar_cliente(request)
 
+    return _erro("metodo_nao_permitido", "Método não permitido nesta rota", 405)
+
+
+CAMPOS_OBRIGATORIOS_VENDA = ("id_cliente", "modalidade", "valor_total", "parcelas")
+_contador_vendas = itertools.count(5)
+
+def _registrar_venda(request):
+    try:
+        dados = json.loads(request.body)
+    except (ValueError, UnicodeDecodeError):
+        dados = None
+    
+    if not isinstance(dados, dict):
+        return _erro("json_invalido", "O corpo da requisição não é um JSON válido", 400)
+    
+    for campo in CAMPOS_OBRIGATORIOS_VENDA:
+        if dados.get(campo) in (None, "", []):
+            return _erro("campo_obrigatorio", f"Campo obrigatório ausente: {campo}", 400)
+
+    if not isinstance(dados["parcelas"], list):
+        return _erro("campo_obrigatorio", "Campo parcelas deve ser uma lista", 400)
+
+    for parcela in dados["parcelas"]:
+        if not isinstance(parcela, dict) or parcela.get("valor_parcela") in (None, 0,"") or not parcela.get("data_vencimento"):
+            return _erro("campo_obrigatorio", "Cada parcela deve ter um valor", 400)    
+
+    vendas = {
+        "id_venda": next(_contador_vendas),
+        "id_cliente": dados["id_cliente"],
+        "modalidade": dados["modalidade"],
+        "data_venda": date.today().isoformat(),
+        "valor_total": dados["valor_total"],
+        "status": "aprovada"
+    }
+    return _json(vendas, status=201)
+
+@csrf_exempt
+def vendas(request):
+    if request.method == "POST":
+        return _registrar_venda(request)
+    
     return _erro("metodo_nao_permitido", "Método não permitido nesta rota", 405)
