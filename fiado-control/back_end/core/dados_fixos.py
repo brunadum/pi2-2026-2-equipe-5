@@ -52,3 +52,21 @@ PARCELAS_PENDENTES = [
         "saldo_devedor_cliente": 150.00,
     },
 ]
+
+TOTAIS_POR_PERIODO = {
+    "dia": {
+        "faturamento_total": 350.00,
+        "total_a_receber": 620.00,
+        "taxa_inadimplencia": 0.05,
+    },
+    "semana": {
+        "faturamento_total": 1800.00,
+        "total_a_receber": 1200.00,
+        "taxa_inadimplencia": 0.08,
+    },
+    "mes": {
+        "faturamento_total": 4200.00,
+        "total_a_receber": 1800.00,
+        "taxa_inadimplencia": 0.12,
+    },
+}
