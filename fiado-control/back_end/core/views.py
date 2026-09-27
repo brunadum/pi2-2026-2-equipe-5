@@ -121,6 +121,22 @@ def _registrar_venda(request):
         if not isinstance(parcela, dict) or parcela.get("valor_parcela") in (None, 0,"") or not parcela.get("data_vencimento"):
             return _erro("campo_obrigatorio", "Cada parcela deve ter um valor", 400)    
 
+    cliente = next((c for c in CLIENTES if c["id_cliente"] == dados["id_cliente"]), None)
+    if cliente is None:
+        return _erro("cliente_nao_encontrado", "Cliente não encontrado", 404)
+
+    id_venda = next(_contador_vendas)
+
+    if dados["valor_total"] > cliente["limite_credito"]:
+        return _json(
+            {
+                "id_venda": id_venda,
+                "status": "rejeitada",
+                "motivo": "limite_credito_excedido",
+            },
+            status=422,
+        )
+
     vendas = {
         "id_venda": next(_contador_vendas),
         "id_cliente": dados["id_cliente"],
