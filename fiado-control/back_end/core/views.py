@@ -12,7 +12,7 @@ from datetime import date
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 
-from .dados_fixos import CLIENTES, PARCELAS_PENDENTES
+from .dados_fixos import CLIENTES, PARCELAS_PENDENTES, TOTAIS_POR_PERIODO
 
 CAMPOS_OBRIGATORIOS = ("nome", "cpf", "telefone", "limite_credito")
 
@@ -182,3 +182,21 @@ def pagamentos(request, id_venda):
         return _registrar_pagamento(request, id_venda)
     
     return _erro("metodo_nao_permitido", "Método não permitido nesta rota", 405)
+
+
+@csrf_exempt
+def dashboard_totais(request):
+    if request.method != "GET":
+        return _erro("metodo_nao_permitido", "Método não permitido nesta rota", 405)
+    
+    periodo = request.GET.get("periodo", "mes")
+
+    if periodo not in TOTAIS_POR_PERIODO:
+        return _erro(
+            "periodo_invalido",
+            "Período deve ser dia, semana ou mes",
+            400,
+        )
+
+    resposta = {"periodo": periodo, **TOTAIS_POR_PERIODO[periodo]}
+    return _json(resposta, status=200)
