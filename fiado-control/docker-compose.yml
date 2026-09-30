@@ -25,6 +25,23 @@ services:
       - ./fiado-control/back_end:/app
     networks:
       - fiado-control-network
+    depends_on:
+      - db
+
+  db:
+    image: postgres:15
+    container_name: fiadocontrol-db
+    restart: always
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: adFiadPi2
+      POSTGRES_DB: fiadocontrol
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./fiado-control/init-scripts:/docker-entrypoint-initdb.d
+    networks:
+      - fiado-control-network
 
 networks:
   fiado-control-network:
