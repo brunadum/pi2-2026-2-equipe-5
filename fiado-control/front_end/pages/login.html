@@ -1,0 +1,75 @@
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#f5f8fc">
+  <title>Fiado Control | Entrar</title>
+  <link rel="stylesheet" href="../css/global.css">
+  <link rel="stylesheet" href="../css/login.css">
+</head>
+<body>
+  <main class="page">
+    <section class="login-card" aria-labelledby="login-title">
+      <div class="brand-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none">
+          <path d="M12 3.2 19 6v5.7c0 4.5-2.9 7.7-7 9.1-4.1-1.4-7-4.6-7-9.1V6l7-2.8Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+          <path d="m9.2 11.8 1.8 1.8 3.9-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <header class="card-header">
+        <h1 id="login-title">Fiado Control</h1>
+        <p>Insira nome e senha para acessar a plataforma</p>
+      </header>
+      <form id="login-form" novalidate>
+        <div class="field">
+          <label for="username">Nome do usuário</label>
+          <div class="input-wrap">
+            <svg class="field-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" stroke="currentColor" stroke-width="1.8"/>
+              <path d="M4.8 20v-1.4a5.2 5.2 0 0 1 5.2-5.2h4a5.2 5.2 0 0 1 5.2 5.2V20" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            </svg>
+            <input id="username" name="username" type="text" placeholder="Ex: edmilson.filho" autocomplete="username" required>
+          </div>
+        </div>
+        <div class="field">
+          <label for="password">Senha</label>
+          <div class="input-wrap">
+            <svg class="field-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <rect x="5" y="10" width="14" height="11" rx="2" stroke="currentColor" stroke-width="1.8"/>
+              <path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            </svg>
+            <input id="password" name="password" type="password" placeholder="Digite sua senha" autocomplete="current-password" required>
+            <button class="toggle-password" id="toggle-password" type="button" aria-label="Mostrar senha" title="Mostrar senha">
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M3 3 21 21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                <path d="M10.6 10.7a2 2 0 0 0 2.7 2.7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                <path d="M9.9 5.2A10.9 10.9 0 0 1 12 5c5.2 0 8.7 4.5 9.5 6-.3.6-1.2 1.8-2.7 3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M6.2 6.3C4.2 7.6 3 9.5 2.5 11c.8 1.5 4.3 6 9.5 6 1 0 2-.2 2.9-.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div class="form-options">
+          <label class="remember">
+            <input type="checkbox" id="remember" checked>
+            <span class="custom-check" aria-hidden="true">
+              <svg viewBox="0 0 16 16" fill="none"><path d="m3.2 8.2 3 3 6.6-6.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+            <span>Lembrar de mim</span>
+          </label>
+          <a href="#" id="forgot-link">Esqueceu a senha?</a>
+        </div>
+        <p class="form-message" id="form-message" role="status" aria-live="polite"></p>
+        <button class="submit-button" type="submit">Entrar</button>
+      </form>
+      <p class="request-access">Ainda não tem uma conta? <a href="#" id="access-link">Solicitar acesso</a></p>
+    </section>
+    <div class="secure-note">
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <rect x="5" y="10" width="14" height="11" rx="2" stroke="currentColor" stroke-width="1.8"/>
+        <path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+      </svg>
+      <span>Ambiente seguro</span>
+    </div>
+  </main>
+  <script src="../js/login.js"></script>
+</body>
+</html>

@@ -86,4 +86,17 @@ http://localhost
 
 ## Status
 
-Frontend preparado para execução em container e integração com o backend.
+Frontend preparado para execução em container e integração com o backend.\n
+## Dashboard
+
+A tela inicial do painel está em `pages/dashboard.html`, com estilos em
+`css/pages/dashboard.css` e interações em `js/pages/dashboard.js`.
+Os indicadores e registros atuais são demonstrativos; a integração com a API
+deve ser feita posteriormente na camada `js/services/`.
+
+Para testar com Docker, execute os comandos na pasta `front_end`:
+```bash
+docker build -t fiado-control-frontend .
+docker run --rm -p 8080:80 fiado-control-frontend
+```
+Depois, acesse `http://localhost:8080/pages/dashboard.html`.

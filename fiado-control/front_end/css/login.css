@@ -1,0 +1,142 @@
+.page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 20px 64px;
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse at 7% 30%, rgba(229, 240, 255, .75), transparent 42%),
+    linear-gradient(115deg, #f3f7fd 0%, #f8fafc 55%, #f6f9fd 100%);
+}
+
+.login-card {
+  width: min(100%, 440px);
+  padding: 39px 39px 37px;
+  background: #fff;
+  border: 1px solid #dce5f1;
+  border-radius: 17px;
+  box-shadow: 0 16px 34px rgba(25, 48, 82, .045);
+  transform: translateY(-1px);
+}
+
+.brand-icon {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 22px;
+  display: grid;
+  place-items: center;
+  color: #2165f5;
+  background: #eff5ff;
+  border: 1px solid #d7e6ff;
+  border-radius: 12px;
+}
+
+.brand-icon svg { width: 25px; height: 25px; }
+
+.card-header { text-align: center; margin-bottom: 31px; }
+.card-header h1 {
+  margin: 0 0 7px;
+  font-size: 24px;
+  line-height: 1.25;
+  font-weight: 700;
+  letter-spacing: -.55px;
+  color: #111a2e;
+}
+.card-header p { margin: 0; color: #4b5d7b; font-size: 14px; line-height: 1.5; }
+
+.field { margin-bottom: 20px; }
+.field label {
+  display: block;
+  margin-bottom: 8px;
+  color: #111b30;
+  font-size: 14px;
+  font-weight: 600;
+}
+.input-wrap {
+  height: 44px;
+  display: flex;
+  align-items: center;
+  border: 1px solid #d8e2ef;
+  border-radius: 8px;
+  background: #fff;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.input-wrap:focus-within { border-color: #7aa5ff; box-shadow: 0 0 0 3px rgba(33, 101, 245, .09); }
+.field-icon { flex: 0 0 auto; width: 19px; height: 19px; margin-left: 13px; color: #94a6c0; }
+.input-wrap input {
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  padding: 0 12px;
+  color: #18243a;
+  background: transparent;
+  border: 0;
+  outline: 0;
+  font-size: 14px;
+}
+.input-wrap input::placeholder { color: #91a5c2; opacity: 1; }
+.toggle-password {
+  flex: 0 0 auto;
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  color: #94a6c0;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+.toggle-password svg { width: 19px; height: 19px; }
+
+.form-options {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: -1px;
+  margin-bottom: 29px;
+  font-size: 13px;
+}
+.remember { display: inline-flex; align-items: center; gap: 8px; color: #40516e; cursor: pointer; user-select: none; }
+.remember input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.custom-check {
+  width: 18px; height: 18px; display: grid; place-items: center;
+  color: #fff; background: #2165f5; border: 1px solid #2165f5; border-radius: 5px;
+}
+.custom-check svg { width: 14px; height: 14px; }
+.remember input:not(:checked) + .custom-check { background: #fff; border-color: #c8d4e5; color: transparent; }
+.remember input:focus-visible + .custom-check { outline: 3px solid rgba(33, 101, 245, .22); outline-offset: 2px; }
+
+.submit-button {
+  width: 100%; height: 46px; color: #fff; background: #0c1a2e;
+  border: 0; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer;
+  transition: background .15s ease, transform .15s ease;
+}
+.submit-button:hover { background: #172b47; }
+.submit-button:active { transform: translateY(1px); }
+.submit-button:focus-visible, .toggle-password:focus-visible, a:focus-visible {
+  outline: 3px solid rgba(33, 101, 245, .3); outline-offset: 3px;
+}
+
+.form-message { display: none; margin: -16px 0 13px; color: #b42318; font-size: 12px; line-height: 1.4; }
+.form-message.visible { display: block; }
+.request-access { margin: 20px 0 0; color: #52627d; text-align: center; font-size: 13px; line-height: 1.5; }
+
+.secure-note {
+  position: absolute; bottom: 27px; left: 26px;
+  display: flex; align-items: center; gap: 7px; color: #8da1bd; font-size: 12px;
+}
+.secure-note svg { width: 15px; height: 15px; }
+
+@media (max-width: 520px) {
+  .page { padding: 24px 16px 72px; }
+  .login-card { padding: 32px 24px 29px; border-radius: 15px; }
+  .card-header h1 { font-size: 22px; }
+  .secure-note { left: 18px; bottom: 18px; }
+}
+@media (max-height: 650px) {
+  .page { align-items: flex-start; overflow-y: auto; }
+}

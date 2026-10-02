@@ -1,1 +1,0 @@
-console.log("Fiado Control - Frontend funcionando!");
