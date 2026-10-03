@@ -1,7 +1,8 @@
 services:
+
   frontend:
     build:
-      context: ./fiado-control/front_end
+      context: ./front_end
       dockerfile: Dockerfile
     container_name: fiado-control-frontend
     ports:
@@ -13,16 +14,16 @@ services:
 
   backend:
     build:
-      context: ./fiado-control/back_end
+      context: ./back_end
       dockerfile: Dockerfile
     container_name: fiado-control-backend
     ports:
-      - "8000:8000"
+      - "8001:8000"
     env_file:
-      - path: ./fiado-control/.env
+      - path: ./.env
         required: false
     volumes:
-      - ./fiado-control/back_end:/app
+      - ./back_end:/app
     networks:
       - fiado-control-network
     depends_on:
@@ -37,9 +38,9 @@ services:
       POSTGRES_PASSWORD: adFiadPi2
       POSTGRES_DB: fiadocontrol
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
-      - ./fiado-control/init-scripts:/docker-entrypoint-initdb.d
+      - ../init-scripts:/docker-entrypoint-initdb.d
     networks:
       - fiado-control-network
 

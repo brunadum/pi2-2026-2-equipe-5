@@ -36,3 +36,37 @@
     if (event.key === "Escape") closeSidebar();
   });
 })();
+
+
+//conectar o front com backend
+async function carregarCliente(){
+  try {
+    const resposta=await fetch("http://localhost:8001/api/clientes")
+    if(!resposta.ok){
+       throw new Error("Erro ao consultar o backend")
+    }
+    const clientes = await resposta.json();
+    console.log(clientes)
+  } catch (erro) {
+    console.error("Erro:",erro);
+  }
+}
+
+carregarCliente()
+
+async function carregarVendas(){
+  try {
+    const resposta=await fetch("http://localhost:8001/api/vendas")
+
+    if(!resposta.ok){
+        throw new Error("Erro ao consultar o backeend")
+    }
+    const vendas= await resposta.json();
+    console.log(vendas)
+    
+  } catch (erro) {
+    console.error("Erro: ",erro)
+  }
+}
+
+carregarVendas()

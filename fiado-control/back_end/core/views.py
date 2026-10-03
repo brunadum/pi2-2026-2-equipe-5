@@ -4,6 +4,7 @@ import json
 from datetime import date, timedelta
 
 from django.http import JsonResponse
+from django.db import connection
 from django.views.decorators.csrf import csrf_exempt
 
 from .dados_fixos import (
@@ -75,6 +76,76 @@ def _filtrar_clientes(nome, cpf, telefone):
     return resultado
 
 
+#fazendo um consulta consutar cliente
+
+
+def _consultar_clientes(nome="", cpf="", telefone=""):
+    with connection.cursor() as cursor:
+        cursor.execute("""
+            SELECT
+                c.id_cliente,
+                c.nome,
+                c.cpf,
+                c.limite_credito,
+                c.ativo,
+                ct.numero
+            FROM cliente c
+            LEFT JOIN cliente_telefone ct
+                ON c.id_cliente = ct.id_cliente
+            ORDER BY c.id_cliente
+        """)
+
+        registros = cursor.fetchall()
+
+    clientes = {}
+
+    for id_cliente, nome_cliente, cpf_cliente, limite_credito, ativo, numero in registros:
+        if id_cliente not in clientes:
+            clientes[id_cliente] = {
+                "id_cliente": id_cliente,
+                "nome": nome_cliente,
+                "cpf": cpf_cliente,
+                "telefone": [],
+                "limite_credito": float(limite_credito),
+                "credito_bloqueado": False,
+                "ativo": ativo,
+            }
+
+        if numero:
+            clientes[id_cliente]["telefone"].append(numero)
+
+    resultado = list(clientes.values())
+
+    if nome:
+        resultado = [
+            c for c in resultado
+            if nome.lower() in c["nome"].lower()
+        ]
+
+    if cpf:
+        cpf = _apenas_digitos(cpf)
+        resultado = [
+            c for c in resultado
+            if cpf in _apenas_digitos(c["cpf"])
+        ]
+
+    if telefone:
+        telefone = _apenas_digitos(telefone)
+        resultado = [
+            c for c in resultado
+            if any(telefone in _apenas_digitos(t) for t in c["telefone"])
+        ]
+
+    return resultado
+
+
+
+#termino da consultar consultar cliente
+
+
+
+
+
 def _cadastrar_cliente(request):
     dados = _ler_json(request)
     if dados is None:
@@ -107,10 +178,11 @@ def _cadastrar_cliente(request):
     return _json(novo, status=201)
 
 
+# Back end 2 fiz uma alterção aqui troquei _filtrar_clientes por _consultar_clientes
 @csrf_exempt
 def clientes(request):
     if request.method == "GET":
-        lista = _filtrar_clientes(
+        lista = _consultar_clientes(
             request.GET.get("nome", "").strip(),
             request.GET.get("cpf", "").strip(),
             request.GET.get("telefone", "").strip(),
@@ -229,8 +301,74 @@ def _registrar_venda(request):
     return _json(venda, status=201)
 
 
+
+#construindo a rota consultar venda
+
+def _consultar_vendas():
+    with connection.cursor() as cursor:
+        cursor.execute("""
+            SELECT
+                v.id_venda,
+                v.id_cliente,
+                c.nome,
+                v.id_usuario,
+                v.data_venda,
+                v.valor_total,
+                v.modalidade,
+                v.status,
+                v.motivo_rejeicao,
+                v.autorizado_por
+            FROM venda v
+            INNER JOIN cliente c
+                ON v.id_cliente = c.id_cliente
+            ORDER BY v.id_venda
+        """)
+
+        registros = cursor.fetchall()
+
+    vendas = []
+
+    for (
+        id_venda,
+        id_cliente,
+        nome_cliente,
+        id_usuario,
+        data_venda,
+        valor_total,
+        modalidade,
+        status,
+        motivo_rejeicao,
+        autorizado_por,
+    ) in registros:
+
+        vendas.append({
+            "id_venda": id_venda,
+            "id_cliente": id_cliente,
+            "nome_cliente": nome_cliente,
+            "id_usuario": id_usuario,
+            "data_venda": data_venda.isoformat() if data_venda else None,
+            "valor_total": float(valor_total),
+            "modalidade": modalidade,
+            "status": status,
+            "motivo_rejeicao": motivo_rejeicao,
+            "autorizado_por": autorizado_por,
+        })
+
+    return vendas
+
+#termino da função consultar venda
+
+
 @csrf_exempt
 def vendas(request):
+
+#Nessa parte fiz o acrecimo de consultar vendas
+    
+    if request.method=="GET":
+       lista=_consultar_vendas()
+       return _json(lista)
+       
+
     if request.method == "POST":
         return _registrar_venda(request)
 
