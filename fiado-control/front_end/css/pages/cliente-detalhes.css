@@ -1,0 +1,38 @@
+/* Tela de detalhes do cliente. */
+.summary-card { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; margin-bottom: 16px; }
+.client-id { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.client-avatar {
+  display: grid; flex: 0 0 44px; place-items: center; width: 44px; height: 44px;
+  color: var(--blue); background: #eff5ff; border: 1px solid #d7e6ff; border-radius: 50%;
+}
+.client-avatar svg { width: 21px; height: 21px; }
+.panel .client-name { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 3px; color: var(--ink); font-size: 16px; font-weight: 700; }
+.client-meta { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.4; }
+.stats { display: flex; align-items: flex-end; gap: 26px; }
+.stat { text-align: left; }
+.stat span { display: block; margin-bottom: 3px; color: var(--muted); font-size: 11px; }
+.stat strong { display: block; color: var(--ink); font-size: 16px; font-weight: 750; letter-spacing: -.3px; white-space: nowrap; }
+.stat-late strong { color: #d92d20; }
+.stat-ok strong { color: #0ba74b; }
+
+.actions { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
+
+.history-panel h2 { margin-bottom: 14px; }
+.data-table .op-name { color: var(--ink); font-weight: 500; }
+
+.summary-card.is-loading .stat strong, .summary-card.is-loading .client-name { color: transparent; }
+
+.pay-saldo { margin: -6px 0 14px; padding: 9px 12px; color: var(--muted); background: #f3f6fb; border-radius: 8px; font-size: 12px; line-height: 1.5; }
+.pay-saldo strong { color: var(--ink); }
+
+@media (max-width: 760px) {
+  .stats { width: 100%; justify-content: space-between; gap: 12px; padding-top: 14px; border-top: 1px solid #e6edf6; }
+  .stat strong { font-size: 14px; }
+}
+@media (max-width: 640px) {
+  .actions .btn { flex: 1 1 100%; }
+}
+@media (max-width: 640px) {
+  .history-panel .data-table th, .history-panel .data-table td { padding-left: 8px; padding-right: 8px; }
+  .history-panel .data-table th:first-child, .history-panel .data-table td:first-child { padding-left: 0; }
+}

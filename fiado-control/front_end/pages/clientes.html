@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0c1b2e">
+  <title>Clientes | Fiado Control</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/global.css">
+  <link rel="stylesheet" href="../css/layout.css">
+  <link rel="stylesheet" href="../css/components.css">
+  <link rel="stylesheet" href="../css/pages/clientes.css">
+</head>
+<body class="app-page">
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <a class="brand" href="dashboard.html" aria-label="Fiado Control - Início">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M7.4 12.1 10 9.5a2 2 0 0 1 2.8 0l1.1 1.1"/><path d="m5.1 10.1 2-2a2 2 0 0 1 2.8 0l.6.6"/><path d="m18.9 10.1-2-2a2 2 0 0 0-2.8 0l-4.7 4.7a1.8 1.8 0 0 0 2.5 2.5l1.5-1.5"/><path d="m6 12.5 3.8 3.8a1.8 1.8 0 0 0 2.5 0l.5-.5"/><path d="m4.3 6.5 2.2-2 3 2.7M19.7 6.5l-2.2-2-3 2.7"/><path d="M3 5.5v13h18v-13"/></svg>
+        </span>
+        <span class="brand-copy"><strong>Fiado Control</strong><small>Gestão de Vendas</small></span>
+      </a>
+
+      <nav class="main-nav" aria-label="Navegação principal">
+        <a class="nav-link" href="dashboard.html">
+          <svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.2"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.2"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.2"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.2"/></svg><span>Dashboard</span>
+        </a>
+        <a class="nav-link" href="#" data-coming-soon="Nova Venda">
+          <svg viewBox="0 0 24 24"><path d="M3 4h2l2.2 11.1a2 2 0 0 0 2 1.6h8.1a2 2 0 0 0 1.9-1.5L21 8H6"/><circle cx="10" cy="20" r="1.2"/><circle cx="18" cy="20" r="1.2"/></svg><span>Nova Venda</span>
+        </a>
+        <a class="nav-link active" href="clientes.html" aria-current="page">
+          <svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.3"/><path d="M2.8 20c.4-3.5 2.5-5.3 6.2-5.3s5.8 1.8 6.2 5.3M16 5.2a3.5 3.5 0 0 1 0 6.8M17.2 15c2.4.4 3.7 2.1 4 5"/></svg><span>Clientes</span>
+        </a>
+        <a class="nav-link" href="#" data-coming-soon="Relatórios">
+          <svg viewBox="0 0 24 24"><path d="M4 20V11M9.5 20V5M15 20v-7M20.5 20H2.5"/></svg><span>Relatórios</span>
+        </a>
+        <a class="nav-link" href="#" data-coming-soon="Configurações">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="m19.4 15 .1.1 1.2 1-1.5 2.6-1.5-.6a7.8 7.8 0 0 1-1.7 1l-.3 1.6h-3l-.3-1.6a7.8 7.8 0 0 1-1.7-1l-1.5.6-1.5-2.6 1.2-1a7.1 7.1 0 0 1 0-2l-1.2-1 1.5-2.6 1.5.6a7.8 7.8 0 0 1 1.7-1l.3-1.6h3l.3 1.6a7.8 7.8 0 0 1 1.7 1l1.5-.6 1.5 2.6-1.2 1a7.1 7.1 0 0 1 0 2Z"/></svg><span>Configurações</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-bottom">
+        <div class="account-button">
+          <span class="avatar">EF</span>
+          <span class="account-copy"><strong>Edmilson Filho</strong><small>Gerente</small></span>
+        </div>
+      </div>
+    </aside>
+
+    <button class="sidebar-backdrop" id="sidebar-backdrop" aria-label="Fechar menu"></button>
+
+    <main class="main-area">
+      <header class="page-header">
+        <button class="mobile-menu" id="mobile-menu" type="button" aria-label="Abrir menu" aria-expanded="false">
+          <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        </button>
+        <div>
+          <h1>Clientes</h1>
+          <p>Gestão de limites de crédito e histórico de pagamentos.</p>
+        </div>
+        <button class="btn btn-primary" id="btn-novo-cliente" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Novo cliente
+        </button>
+      </header>
+
+      <div class="notice" id="aviso-local" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5h.01"/></svg><span id="aviso-local-texto"></span></div>
+
+      <section class="panel toolbar" aria-label="Busca e filtros">
+        <label class="search">
+          <span class="sr-only">Buscar cliente por nome ou CPF</span>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4-4"/></svg>
+          <input id="busca" type="search" placeholder="Buscar cliente por nome ou CPF…" autocomplete="off">
+        </label>
+        <div class="segmented" role="group" aria-label="Filtrar por situação">
+          <button type="button" data-filtro="todos" aria-pressed="true">Todos</button>
+          <button type="button" data-filtro="dia" aria-pressed="false">Em dia</button>
+          <button type="button" data-filtro="atraso" aria-pressed="false">Em atraso</button>
+        </div>
+      </section>
+
+      <section class="panel table-panel" aria-label="Lista de clientes">
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Cliente</th><th>Telefone</th><th>Limite de crédito</th><th>Em aberto</th><th>Situação</th><th class="cell-right">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="clientes-body"></tbody>
+          </table>
+        </div>
+        <div class="state-box" id="estado" hidden></div>
+        <p class="sr-only" id="contagem" role="status" aria-live="polite"></p>
+      </section>
+    </main>
+  </div>
+
+  <div class="modal-overlay" id="modal-cliente" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-cliente-titulo">
+      <header class="modal-header">
+        <h2 id="modal-cliente-titulo">Cadastro Rápido de Cliente</h2>
+        <button class="icon-btn" type="button" data-close-modal aria-label="Fechar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+      </header>
+      <form id="form-cliente" novalidate>
+        <div class="form-alert" id="cli-alerta" role="alert" hidden></div>
+
+        <div class="form-field">
+          <label for="cli-nome">Nome completo <span class="req" aria-hidden="true">*</span></label>
+          <input id="cli-nome" type="text" placeholder="Ex: José Maria da Silva" autocomplete="off" maxlength="100" required aria-required="true" aria-describedby="cli-nome-erro" data-autofocus>
+          <p class="field-error" id="cli-nome-erro" hidden></p>
+        </div>
+
+        <div class="form-field">
+          <label for="cli-cpf">CPF <span class="req" aria-hidden="true">*</span></label>
+          <input id="cli-cpf" type="text" inputmode="numeric" placeholder="000.000.000-00" autocomplete="off" maxlength="14" required aria-required="true" aria-describedby="cli-cpf-erro">
+          <p class="field-error" id="cli-cpf-erro" hidden></p>
+        </div>
+
+        <div class="form-row">
+          <div class="form-field">
+            <label for="cli-telefone">Telefone <span class="req" aria-hidden="true">*</span></label>
+            <input id="cli-telefone" type="tel" inputmode="numeric" placeholder="(88) 99999-9999" autocomplete="off" maxlength="15" required aria-required="true" aria-describedby="cli-telefone-erro">
+            <p class="field-error" id="cli-telefone-erro" hidden></p>
+          </div>
+          <div class="form-field">
+            <label for="cli-limite">Limite de crédito inicial</label>
+            <input id="cli-limite" type="text" inputmode="numeric" placeholder="R$ 0,00" autocomplete="off">
+          </div>
+        </div>
+
+        <div class="form-row form-row-address">
+          <div class="form-field combo">
+            <label for="cli-rua">Rua e bairro</label>
+            <input id="cli-rua" type="text" placeholder="Digite o nome da rua…" autocomplete="off" maxlength="120"
+                   role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="cli-rua-lista" aria-describedby="cli-rua-erro">
+            <ul class="combo-list" id="cli-rua-lista" role="listbox" aria-label="Sugestões de endereço" hidden></ul>
+            <p class="field-error" id="cli-rua-erro" hidden></p>
+          </div>
+          <div class="form-field">
+            <label for="cli-numero">Número</label>
+            <input id="cli-numero" type="text" placeholder="Ex: 120" autocomplete="off" maxlength="8" aria-describedby="cli-numero-erro">
+            <p class="field-error" id="cli-numero-erro" hidden></p>
+          </div>
+        </div>
+
+        <footer class="modal-footer">
+          <span class="legend"><span class="req">*</span> Obrigatórios</span>
+          <button type="button" class="btn btn-outline" data-close-modal>Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="cli-enviar" disabled>Cadastrar cliente</button>
+        </footer>
+      </form>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="../js/config.js"></script>
+  <script src="../js/utils/format.js"></script>
+  <script src="../js/utils/validators.js"></script>
+  <script src="../js/utils/masks.js"></script>
+  <script src="../js/shared/ui.js"></script>
+  <script src="../js/services/api.js"></script>
+  <script src="../js/services/clientes.js"></script>
+  <script src="../js/services/enderecos.js"></script>
+  <script src="../js/components/cadastro-cliente.js"></script>
+  <script src="../js/pages/clientes.js"></script>
+</body>
+</html>
