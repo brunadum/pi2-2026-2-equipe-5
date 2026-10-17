@@ -82,14 +82,14 @@ class ClientesTests(RotasBase):
     def test_cadastro_ok_nasce_com_limite_zero(self):
         r = self.post(
             "/api/clientes",
-            {"nome": "Novo", "cpf": "999.888.777-66", "telefone": ["88900000000"]},
+            {"nome": "Novo", "cpf": "529.982.247-25", "telefone": ["88900000000"]},
         )
         self.assertEqual(r.status_code, 201)
         c = r.json()
         self.assertEqual(c["limite_credito"], 0)
         self.assertFalse(c["credito_bloqueado"])
         self.assertTrue(c["ativo"])
-        self.assertEqual(c["cpf"], "99988877766")
+        self.assertEqual(c["cpf"], "52998224725")
 
     def test_cadastro_campos_ausentes_lista_todos(self):
         r = self.post("/api/clientes", {"nome": "X"})
@@ -97,8 +97,8 @@ class ClientesTests(RotasBase):
         self.assertEqual(r.json()["campos"], ["cpf", "telefone"])
 
     def test_cadastro_cpf_duplicado(self):
-        r = self.post("/api/clientes", {"nome": "X", "cpf": "12345678900", "telefone": ["1"]})
-        self.assertErro(r, 422, "cpf_invalido")
+        r = self.post("/api/clientes", {"nome": "X", "cpf": "12345678900", "telefone": ["88999990000"]})
+        self.assertErro(r, 409, "cpf_duplicado")
 
     def test_cadastro_json_invalido(self):
         r = self.client.post("/api/clientes", "isso nao e json", content_type="application/json")
@@ -459,7 +459,7 @@ class Issue46RegressaoTests(RotasBase):
 
     def test_cadastro_telefone_invalido_nao_grava_cliente(self):
         r = self.post('/api/clientes', {'nome': 'Teste', 'cpf': '10120230344', 'telefone': ['1', '2' * 21]})
-        self.assertErro(r, 400, 'campo_invalido')
+        self.assertErro(r, 400, 'telefone_invalido')
         with connection.cursor() as cursor:
             cursor.execute("SELECT COUNT(*) FROM cliente WHERE cpf = '10120230344'")
             self.assertEqual(cursor.fetchone()[0], 0)
@@ -534,14 +534,14 @@ class Issue46RegressaoTests(RotasBase):
             return execute(sql, params, many, context)
         with connection.execute_wrapper(falhar):
             with self.assertRaises(RuntimeError):
-                self.post('/api/clientes', {'nome': 'Rollback', 'cpf': '12312312312', 'telefone': ['88999999999']})
+                self.post('/api/clientes', {'nome': 'Rollback', 'cpf': '52998224725', 'telefone': ['88999999999']})
         with connection.cursor() as cursor:
-            cursor.execute("SELECT COUNT(*) FROM cliente WHERE cpf = '12312312312'")
+            cursor.execute("SELECT COUNT(*) FROM cliente WHERE cpf = '52998224725'")
             self.assertEqual(cursor.fetchone()[0], 0)
 
     def test_cadastros_simultaneos_mesmo_cpf(self):
-        dados = {'nome': 'Concorrente', 'cpf': '123.123.123-12', 'telefone': ['88999999999']}
-        self.assertEqual(self._simultaneos('/api/clientes', dados, 'INSERT INTO cliente '), [201, 422])
+        dados = {'nome': 'Concorrente', 'cpf': '529.982.247-25', 'telefone': ['88999999999']}
+        self.assertEqual(self._simultaneos('/api/clientes', dados, 'INSERT INTO cliente '), [201, 409])
 
     def test_requisicoes_nao_criam_tabelas(self):
         def sem_ddl(execute, sql, params, many, context):
@@ -552,7 +552,7 @@ class Issue46RegressaoTests(RotasBase):
                 self.assertEqual(self.client.get(url).status_code, 200)
             self.assertEqual(self.post('/api/vendas', self._venda()).status_code, 201)
             self.assertEqual(self.post('/api/pagamentos', {'id_parcela': 1, 'valor_recebido': 1}).status_code, 201)
-            self.assertEqual(self.post('/api/clientes', {'nome': 'DDL', 'cpf': '12312312312', 'telefone': ['88999999999']}).status_code, 201)
+            self.assertEqual(self.post('/api/clientes', {'nome': 'DDL', 'cpf': '52998224725', 'telefone': ['88999999999']}).status_code, 201)
 
     def test_vendas_rejeitam_identificadores_e_valores_invalidos(self):
         for extra in ({'id_cliente': True}, {'id_cliente': 'x'}, {'id_cliente': 5.9},
@@ -709,3 +709,129 @@ class RegrasNegocioTests(RotasBase):
         self.assertEqual(observados, [80])
         self.assertEqual(resposta.json()['saldo_devedor_cliente'], 80)
         self.assertEqual(self.saldo_em_outra_conexao(), 80)
+
+
+class ValidacoesEntradasTests(RotasBase):
+    def cliente(self, **extra):
+        dados = {'nome': 'Cliente Valido', 'cpf': '529.982.247-25', 'telefone': ['(88) 99999-0000']}
+        dados.update(extra)
+        return self.post('/api/clientes', dados)
+
+    def venda(self, **extra):
+        dados = {'id_cliente': 5, 'modalidade': 'a_prazo', 'valor_total': 100,
+                 'quantidade_parcelas': 2,
+                 'data_primeiro_vencimento': (date.today() + timedelta(days=30)).isoformat()}
+        dados.update(extra)
+        return self.post('/api/vendas', dados)
+
+    def test_cpf_invalido_nao_cadastra(self):
+        for cpf in ('00000000000', '52998224724', '123', 'abc52998224725', '５２９９８２２４７２５', True):
+            with self.subTest(cpf=cpf):
+                self.assertErro(self.cliente(cpf=cpf), 422, 'cpf_invalido')
+        with connection.cursor() as cursor:
+            cursor.execute('SELECT COUNT(*) FROM cliente')
+            self.assertEqual(cursor.fetchone()[0], 10)
+
+    def test_cpf_valido_com_e_sem_mascara_tem_mesma_identidade(self):
+        r = self.cliente()
+        self.assertEqual(r.status_code, 201)
+        self.assertEqual(r.json()['cpf'], '52998224725')
+        self.assertErro(self.cliente(cpf='52998224725'), 409, 'cpf_duplicado')
+
+    def test_cpf_duplicado_do_seed_retorna_conflito(self):
+        self.assertErro(self.cliente(cpf='111.111.111-11'), 409, 'cpf_duplicado')
+
+    def test_telefone_invalido_nao_cadastra(self):
+        for telefone in (['123'], ['sem telefone'], ['88999990000abc'], [None], [99999999999], ['(00) 99999-0000'], ['(88 99999-0000']):
+            with self.subTest(telefone=telefone):
+                self.assertErro(self.cliente(telefone=telefone), 400, 'telefone_invalido')
+
+    def test_normaliza_telefones_validos_e_remove_duplicados(self):
+        r = self.cliente(telefone=['(88) 99999-0000', '+55 (88) 99999-0000', '8833330000'])
+        self.assertEqual(r.status_code, 201)
+        self.assertEqual(r.json()['telefone'], ['88999990000', '8833330000'])
+
+    def test_nome_em_branco_e_campos_ausentes(self):
+        r = self.cliente(nome='   ')
+        self.assertErro(r, 400, 'campo_obrigatorio')
+        self.assertIn('nome', r.json()['campos'])
+        self.assertErro(self.cliente(nome='X' * 101), 400, 'campo_invalido')
+
+    def test_identificadores_invalidos_retornam_json_nas_tres_consultas(self):
+        for valor in ('abc', '0', '-1', '2147483648', '1.5'):
+            for sufixo in ('', '/saldo', '/parcelas'):
+                with self.subTest(valor=valor, sufixo=sufixo):
+                    self.assertErro(self.client.get(f'/api/clientes/{valor}{sufixo}'), 400, 'campo_invalido')
+
+    def test_filtros_invalidos_de_clientes(self):
+        for query in ('cpf=abc', 'cpf=123456789012', 'telefone=abc', 'telefone=12345678901234', 'nome=' + 'x' * 101):
+            with self.subTest(query=query):
+                self.assertErro(self.client.get('/api/clientes?' + query), 400, 'campo_invalido')
+
+    def test_filtros_parciais_e_formatados_continuam_funcionando(self):
+        self.assertEqual(len(self.client.get('/api/clientes?cpf=111.111.111-11').json()), 1)
+        self.assertGreater(len(self.client.get('/api/clientes?telefone=8899').json()), 0)
+
+    def test_vencimento_passado_retorna_422_sem_gravar_venda(self):
+        self.assertErro(self.venda(data_primeiro_vencimento=(date.today() - timedelta(days=1)).isoformat()), 422, 'vencimento_invalido')
+        with connection.cursor() as cursor:
+            cursor.execute('SELECT COUNT(*) FROM venda')
+            self.assertEqual(cursor.fetchone()[0], 10)
+
+    def test_vencimento_hoje_e_permitido(self):
+        self.assertEqual(self.venda(data_primeiro_vencimento=date.today().isoformat()).status_code, 201)
+
+    def test_fiado_rejeita_multiplas_parcelas(self):
+        for quantidade in (2, True, 1.5, '1', 0):
+            with self.subTest(quantidade=quantidade):
+                self.assertErro(self.venda(modalidade='fiado', quantidade_parcelas=quantidade), 400, 'campo_invalido')
+
+    def test_venda_rejeita_valor_e_quantidade_incoerentes(self):
+        for campos in ({'valor_total': 0}, {'valor_total': -1}, {'valor_total': 1.001},
+                       {'valor_total': True}, {'valor_total': '100'},
+                       {'valor_total': 0.01, 'quantidade_parcelas': 2},
+                       {'quantidade_parcelas': 1.5}, {'quantidade_parcelas': True},
+                       {'data_primeiro_vencimento': '2026-02-30'}):
+            with self.subTest(campos=campos):
+                self.assertErro(self.venda(**campos), 400, 'campo_invalido')
+
+    def test_pagamento_invalido_nao_grava_recebimento(self):
+        for dados in ({'id_parcela': 1, 'valor_recebido': 0}, {'id_parcela': 1, 'valor_recebido': -1},
+                      {'id_parcela': 1, 'valor_recebido': 0.001}, {'id_parcela': True, 'valor_recebido': 1}):
+            with self.subTest(dados=dados):
+                self.assertErro(self.post('/api/pagamentos', dados), 400, 'campo_invalido')
+        with connection.cursor() as cursor:
+            cursor.execute('SELECT COUNT(*) FROM recebimento')
+            self.assertEqual(cursor.fetchone()[0], 0)
+
+    def test_corpos_nao_objeto_e_json_malformado(self):
+        for rota in ('/api/clientes', '/api/vendas', '/api/pagamentos'):
+            for corpo in ('[]', 'null', '{', '"texto"'):
+                with self.subTest(rota=rota, corpo=corpo):
+                    self.assertErro(self.client.post(rota, corpo, content_type='application/json'), 400, 'json_invalido')
+
+    def test_expoente_json_fora_do_intervalo_nao_retorna_500(self):
+        for rota in ('/api/clientes', '/api/vendas', '/api/pagamentos'):
+            for numero in ('1e9999999999999999999', '1e-9999999999999999999'):
+                with self.subTest(rota=rota, numero=numero):
+                    corpo = '{"extra":' + numero + '}'
+                    self.assertErro(self.client.post(rota, corpo, content_type='application/json'), 400, 'json_invalido')
+
+    def test_filtros_invalidos_na_listagem_de_vendas(self):
+        for query in ('id_cliente=x', 'status=invalido', 'modalidade=cartao',
+                      'data_inicio=2026-02-30', 'data_inicio=2026-10-20&data_fim=2026-10-01'):
+            with self.subTest(query=query):
+                self.assertErro(self.client.get('/api/vendas?' + query), 400, 'campo_invalido')
+
+    def test_filtros_validos_da_listagem_de_vendas(self):
+        self.assertEqual(self.client.get('/api/vendas?id_cliente=999999').json(), [])
+        r = self.client.get('/api/vendas?status=rejeitada&modalidade=fiado')
+        self.assertEqual(r.status_code, 200)
+        self.assertGreater(len(r.json()), 0)
+        self.assertTrue(all(v['status'] == 'rejeitada' and v['modalidade'] == 'fiado' for v in r.json()))
+
+    def test_dashboard_rejeita_periodo_e_janela_invalidos(self):
+        self.assertErro(self.client.get('/api/dashboard?periodo=ano'), 400, 'periodo_invalido')
+        for dias in ('0', '-1', '1.5', 'abc', '99999999999999999999'):
+            with self.subTest(dias=dias):
+                self.assertErro(self.client.get('/api/dashboard?dias=' + dias), 400, 'campo_invalido')
