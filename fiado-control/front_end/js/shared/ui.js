@@ -84,5 +84,33 @@
     return { abrir, fechar, estaAberto: aberto, travar: (v) => { travado = v; } };
   }
 
-  FC.ui = { toast, initSidebar, criarModal };
+  // Diálogo de confirmação. Retorna Promise<boolean>.
+  function confirmar({ titulo, mensagem, rotuloConfirmar = "Confirmar", perigo = false }) {
+    return new Promise((resolve) => {
+      const overlay = document.createElement("div");
+      overlay.className = "modal-overlay";
+      overlay.hidden = true;
+      overlay.innerHTML = `<div class="modal modal-sm" role="alertdialog" aria-modal="true" aria-labelledby="conf-titulo" aria-describedby="conf-msg">
+        ${perigo ? '<span class="confirm-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg></span>' : ""}
+        <h2 id="conf-titulo" style="margin:0 0 8px;font-size:16px;color:var(--ink)"></h2>
+        <p class="confirm-text" id="conf-msg"></p>
+        <footer class="modal-footer">
+          <button type="button" class="btn btn-outline" data-close-modal>Cancelar</button>
+          <button type="button" class="btn ${perigo ? "btn-danger" : "btn-primary"}" data-confirmar data-autofocus></button>
+        </footer></div>`;
+      overlay.querySelector("#conf-titulo").textContent = titulo;
+      overlay.querySelector("#conf-msg").textContent = mensagem;
+      overlay.querySelector("[data-confirmar]").textContent = rotuloConfirmar;
+      document.body.appendChild(overlay);
+
+      let resultado = false;
+      const modal = criarModal(overlay, {
+        aoFechar: () => { overlay.remove(); resolve(resultado); },
+      });
+      overlay.querySelector("[data-confirmar]").addEventListener("click", () => { resultado = true; modal.fechar(); });
+      modal.abrir();
+    });
+  }
+
+  FC.ui = { toast, initSidebar, criarModal, confirmar };
 })();

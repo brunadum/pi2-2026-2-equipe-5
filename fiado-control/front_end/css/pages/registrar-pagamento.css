@@ -1,0 +1,38 @@
+/* Tela Registrar Pagamento / Baixa. */
+.pag-grid { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 24px; align-items: start; }
+.opcoes { position: sticky; top: 20px; }
+.subtitulo { margin: 24px 0 8px !important; font-size: 15px !important; }
+.parcelas-table td { vertical-align: middle; }
+.parcelas-table .sub { display: block; margin-top: 2px; color: var(--muted); font-size: 11px; font-weight: 500; }
+.parcelas-table tbody tr.is-marcada { background: #f5f9ff; }
+.parcelas-table .col-check { width: 64px; }
+.check-all { justify-content: center; }
+.table-wrap[hidden] { display: none; }
+.parcelas-table tbody tr.skeleton-row td { padding: 16px 12px; }
+
+.total-devido { padding-bottom: 18px; margin-bottom: 18px; border-bottom: 1px solid #e6edf6; }
+.total-devido span { display: block; margin-bottom: 4px; color: var(--muted); font-size: 13px; }
+.total-devido strong { display: block; font-size: 32px; line-height: 1.15; font-weight: 800; letter-spacing: -.8px; }
+.valor-vermelho { color: #dc2626; }
+.valor-verde { color: var(--green); }
+.opcoes form h2 { margin-bottom: 14px; font-size: 16px; }
+.selecionado { margin: -4px 0 14px; padding: 8px 12px; color: #1f4fc4; background: #eef4ff; border-radius: 8px; font-size: 12px; }
+.selecionado[hidden] { display: none; }
+#valor-baixa { font-weight: 700; font-size: 14px; }
+
+.recibo { margin: 16px 0 0; padding: 12px 14px; background: #effcf4; border: 1px solid #b6ebcb; border-radius: 10px; }
+.recibo p { margin: 0 0 8px; color: var(--ink); font-size: 13px; }
+.recibo p strong { color: var(--green); }
+.recibo ul { margin: 0 0 12px; padding: 0; list-style: none; }
+.recibo li { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; color: var(--muted); font-size: 12px; }
+.recibo li strong { color: var(--ink); font-weight: 650; }
+.recibo li em { color: var(--green); font-style: normal; font-weight: 600; font-size: 11px; }
+
+@media (max-width: 1100px) {
+  .pag-grid { grid-template-columns: 1fr; }
+  .opcoes { position: static; }
+}
+@media (max-width: 520px) {
+  .busca-linha .btn-icone { width: 44px; }
+  .acoes-form { grid-template-columns: 1fr; }
+}

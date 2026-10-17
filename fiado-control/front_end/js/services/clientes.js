@@ -41,6 +41,9 @@
     historico: "histórico",
     limite: "alterações de limite",
     pagamento: "pagamentos",
+    edicao: "edições de clientes",
+    exclusao: "exclusões de clientes",
+    venda: "vendas",
   };
 
   // ------------------------------------------------------------ store local
@@ -48,9 +51,12 @@
   function lerStore() {
     try {
       const s = JSON.parse(localStorage.getItem(CHAVE_STORE) || "{}");
-      return { clientes: s.clientes || [], limites: s.limites || {}, pagamentos: s.pagamentos || [], seq: s.seq || 0 };
+      return {
+        clientes: s.clientes || [], limites: s.limites || {}, pagamentos: s.pagamentos || [], seq: s.seq || 0,
+        edicoes: s.edicoes || {}, excluidos: s.excluidos || [], vendas: s.vendas || [],
+      };
     } catch {
-      return { clientes: [], limites: {}, pagamentos: [], seq: 0 };
+      return { clientes: [], limites: {}, pagamentos: [], seq: 0, edicoes: {}, excluidos: [], vendas: [] };
     }
   }
 
@@ -66,12 +72,15 @@
   // ----------------------------------------------------------- normalização
 
   function normalizarCliente(c, store) {
+    // Edições feitas na tela enquanto PUT /clientes/{id} não existe no back-end.
+    const ed = store.edicoes[c.id_cliente] || {};
     const telefones = (Array.isArray(c.telefone) ? c.telefone : [c.telefone]).filter(Boolean).map(apenasDigitos);
     return {
       id: c.id_cliente,
-      nome: c.nome,
-      cpf: apenasDigitos(c.cpf),
-      telefone: telefones,
+      nome: ed.nome ?? c.nome,
+      cpf: apenasDigitos(ed.cpf ?? c.cpf),
+      telefone: ed.telefone ? [apenasDigitos(ed.telefone)] : telefones,
+      endereco: ed.endereco ?? c.endereco ?? null,
       // Override local só existe enquanto PUT /clientes/{id}/limite não estiver implementado.
       limite_credito: Number(store.limites[c.id_cliente] ?? c.limite_credito) || 0,
       credito_bloqueado: !!c.credito_bloqueado,
@@ -85,7 +94,8 @@
   async function listarClientes() {
     const dados = await request("/clientes");
     const store = lerStore();
-    const doServidor = dados.map((c) => normalizarCliente(c, store));
+    const excluidos = new Set(store.excluidos.map(String));
+    const doServidor = dados.filter((c) => !excluidos.has(String(c.id_cliente))).map((c) => normalizarCliente(c, store));
 
     // Clientes criados só localmente deixam de existir aqui quando o servidor passa a tê-los.
     const cpfsServidor = new Set(doServidor.map((c) => c.cpf));
@@ -136,8 +146,24 @@
 
   // Fallback: cada venda aprovada vira uma parcela única; pagamentos locais abatem o saldo.
   async function parcelasLocais(cliente) {
-    if (cliente.local) return [];
     const store = lerStore();
+
+    if (cliente.local) {
+      const lista = [];
+      for (const v of store.vendas.filter((x) => x.id_cliente === cliente.id)) {
+        for (const p of v.parcelas) {
+          const pago = store.pagamentos.filter((x) => x.ref === p.id_parcela).reduce((t, x) => t + x.valor, 0);
+          const saldo = Math.max(0, arredondar(p.valor_parcela - pago));
+          lista.push({
+            id_parcela: p.id_parcela, id_venda: v.id_venda, numero: p.numero, valor_parcela: p.valor_parcela,
+            saldo_parcela: saldo, devido: saldo, data_vencimento: p.data_vencimento, total_parcelas: v.parcelas.length,
+            status: saldo > 0 ? "pendente" : "pago", dias_atraso: 0, origem: "local",
+          });
+        }
+      }
+      return lista;
+    }
+
     const vendas = (await obterVendas()).filter((v) => v.id_cliente === cliente.id && v.status === "aprovada");
 
     return vendas.map((v) => {
@@ -148,6 +174,7 @@
         id_parcela: id,
         id_venda: v.id_venda,
         numero: 1,
+        total_parcelas: 1,
         valor_parcela: v.valor_total,
         saldo_parcela: saldo,
         devido: saldo,
@@ -179,7 +206,13 @@
     if (!cliente.local && !indisponivel.parcelas) {
       try {
         const dados = await request(`/clientes/${encodeURIComponent(cliente.id)}/parcelas`);
-        return dados.map(normalizarParcelaApi).filter((p) => p.status !== "pago" && p.saldo_parcela > 0);
+        const todas = dados.map(normalizarParcelaApi);
+        // Quantas parcelas cada venda tem (para exibir "01/03"), contando também as já pagas.
+        const quantidade = {};
+        todas.forEach((p) => { quantidade[p.id_venda] = Math.max(quantidade[p.id_venda] || 0, p.numero); });
+        return todas
+          .filter((p) => p.status !== "pago" && p.saldo_parcela > 0)
+          .map((p) => ({ ...p, total_parcelas: quantidade[p.id_venda] || 1 }));
       } catch (e) {
         if (!e.naoImplementado) throw e;
         indisponivel.parcelas = true;
@@ -243,7 +276,11 @@
     const store = lerStore();
     const itens = [];
 
-    if (!cliente.local) {
+    if (cliente.local) {
+      for (const v of store.vendas.filter((x) => x.id_cliente === cliente.id)) {
+        itens.push({ tipo: "venda", id: v.id_venda, data: v.data, valor: v.valor_total, situacao: null });
+      }
+    } else {
       const vendas = (await obterVendas()).filter((v) => v.id_cliente === cliente.id && v.status !== "rejeitada");
       for (const v of vendas) {
         itens.push({
@@ -367,6 +404,185 @@
     return criado;
   }
 
+  // ----------------------------------------------------- editar / excluir
+
+  // dados: { nome, cpf, telefone, limite?, endereco? }
+  async function editarCliente(cliente, { nome, cpf, telefone, limite, endereco }) {
+    const cpfDigitos = apenasDigitos(cpf);
+    const telDigitos = apenasDigitos(telefone);
+    const store = lerStore();
+
+    if (cliente.local) {
+      const alvo = store.clientes.find((c) => c.id === cliente.id);
+      if (!alvo) throw naoEncontrado();
+      Object.assign(alvo, { nome: nome.trim(), cpf: cpfDigitos, telefone: [telDigitos], endereco: endereco || alvo.endereco || null });
+      salvarStore(store);
+    } else {
+      try {
+        await request(`/clientes/${encodeURIComponent(cliente.id)}`, {
+          method: "PUT",
+          body: { nome: nome.trim(), cpf: cpfDigitos, telefone: [telDigitos], ...(endereco ? { endereco } : {}) },
+        });
+        delete store.edicoes[cliente.id];
+      } catch (e) {
+        if (!e.naoImplementado) throw e;
+        usoLocal.add("edicao");
+        store.edicoes[cliente.id] = { nome: nome.trim(), cpf: cpfDigitos, telefone: telDigitos, endereco: endereco || null };
+      }
+      salvarStore(store);
+    }
+
+    if (limite != null && arredondar(limite) !== arredondar(cliente.limite_credito)) {
+      await alterarLimite(cliente, limite);
+    }
+  }
+
+  // Só exclui cliente sem valores em aberto.
+  async function excluirCliente(cliente) {
+    const resumo = await obterResumo(cliente);
+    if (resumo.saldo_devedor > 0) {
+      throw new ApiError({
+        status: 422,
+        codigo: "cliente_com_saldo",
+        mensagem: `${cliente.nome} possui ${FC.format.moeda(resumo.saldo_devedor)} em aberto. Quite as parcelas antes de excluir o cliente.`,
+      });
+    }
+
+    const store = lerStore();
+    if (cliente.local) {
+      store.clientes = store.clientes.filter((c) => c.id !== cliente.id);
+    } else {
+      try {
+        await request(`/clientes/${encodeURIComponent(cliente.id)}`, { method: "DELETE" });
+        store.excluidos = store.excluidos.filter((i) => String(i) !== String(cliente.id));
+      } catch (e) {
+        if (!e.naoImplementado) throw e;
+        usoLocal.add("exclusao");
+        if (!store.excluidos.some((i) => String(i) === String(cliente.id))) store.excluidos.push(cliente.id);
+      }
+    }
+    salvarStore(store);
+  }
+
+  // ------------------------------------------------------------------ vendas
+
+  function somarMeses(iso, n) {
+    const [a, m, d] = iso.split("-").map(Number);
+    const total = (m - 1) + n;
+    const ano = a + Math.floor(total / 12);
+    const mes = ((total % 12) + 12) % 12;
+    const ultimo = new Date(ano, mes + 1, 0).getDate();
+    const p = (x) => String(x).padStart(2, "0");
+    return `${ano}-${p(mes + 1)}-${p(Math.min(d, ultimo))}`;
+  }
+
+  const MOTIVOS_VENDA = {
+    credito_bloqueado: "O crédito deste cliente está bloqueado.",
+    parcelas_em_atraso: "O cliente possui parcelas em atraso.",
+    limite_credito_excedido: "O valor da venda excede o limite disponível do cliente.",
+  };
+
+  // venda: { modalidade, parcelas, total, primeiroVencimento, itens, subtotal, desconto }
+  // Retorna { id_venda, status, parcelas:[{numero, valor_parcela, data_vencimento}] }.
+  // Venda rejeitada pelo back-end vira ApiError com codigo = motivo.
+  async function registrarVenda(cliente, venda) {
+    const total = arredondar(venda.total);
+    const parcelas = venda.modalidade === "fiado" ? 1 : venda.parcelas;
+    const store = lerStore();
+
+    if (cliente.local) {
+      usoLocal.add("venda");
+      const resumo = await obterResumo(cliente);
+      const motivo = resumo.credito_bloqueado ? "credito_bloqueado" : total > resumo.limite_disponivel ? "limite_credito_excedido" : null;
+      if (motivo) throw new ApiError({ status: 422, codigo: motivo, mensagem: MOTIVOS_VENDA[motivo] });
+
+      const id = ++store.seq;
+      const idVenda = `L${id}`;
+      const centavos = Math.round(total * 100);
+      const base = Math.floor(centavos / parcelas);
+      const lista = Array.from({ length: parcelas }, (_, i) => ({
+        id_parcela: `${idVenda}-${i + 1}`,
+        numero: i + 1,
+        valor_parcela: (i < parcelas - 1 ? base : centavos - base * (parcelas - 1)) / 100,
+        data_vencimento: somarMeses(venda.primeiroVencimento, i),
+      }));
+      store.vendas.push({ id_venda: idVenda, id_cliente: cliente.id, data: hojeISO(), valor_total: total, modalidade: venda.modalidade, parcelas: lista, itens: venda.itens });
+      salvarStore(store);
+      return { id_venda: idVenda, numero: id, status: "aprovada", parcelas: lista };
+    }
+
+    let resposta;
+    try {
+      resposta = await request("/vendas", {
+        method: "POST",
+        body: {
+          id_cliente: cliente.id,
+          modalidade: venda.modalidade,
+          valor_total: total,
+          data_primeiro_vencimento: venda.primeiroVencimento,
+          quantidade_parcelas: parcelas,
+        },
+      });
+    } catch (e) {
+      const motivo = e.dados?.motivo;
+      if (e.status === 422 && motivo) {
+        throw new ApiError({ status: 422, codigo: motivo, mensagem: MOTIVOS_VENDA[motivo] || "Venda rejeitada pelo sistema.", dados: e.dados });
+      }
+      throw e;
+    }
+
+    // Guarda os itens da venda (o back-end só recebe o total) para exibir depois, neste navegador.
+    store.vendas = store.vendas.filter((v) => v.id_venda !== resposta.id_venda || v.api !== true);
+    store.vendas.push({ id_venda: resposta.id_venda, api: true, id_cliente: cliente.id, data: hojeISO(), valor_total: total, itens: venda.itens, parcelas: [] });
+    salvarStore(store);
+
+    return {
+      id_venda: resposta.id_venda,
+      numero: resposta.id_venda,
+      status: resposta.status || "aprovada",
+      parcelas: resposta.parcelas || [],
+    };
+  }
+
+  // ------------------------------------------------------------- baixa (vários)
+
+  // Distribui `valor` pelas parcelas escolhidas (mais antigas primeiro), uma requisição por parcela.
+  // Retorna { pagamentos:[{parcela, valor, resposta}], saldo_devedor_cliente? }.
+  async function registrarBaixa(cliente, parcelas, valor, forma) {
+    valor = arredondar(valor);
+    const ordenadas = [...parcelas].sort((a, b) =>
+      String(a.data_vencimento || "").localeCompare(String(b.data_vencimento || "")) || a.numero - b.numero);
+
+    let restante = valor;
+    const feitos = [];
+    for (const parcela of ordenadas) {
+      if (restante <= 0) break;
+      const parte = arredondar(Math.min(restante, parcela.devido));
+      if (parte <= 0) continue;
+      try {
+        const resposta = await registrarPagamento(cliente, parcela, parte);
+        feitos.push({ parcela, valor: parte, resposta });
+        restante = arredondar(restante - parte);
+
+        // Guarda forma de pagamento (o back-end ainda não recebe esse dado) para o histórico local.
+        if (parcela.origem === "api") {
+          const store = lerStore();
+          const id = ++store.seq;
+          store.pagamentos.push({ id: resposta.id_pagamento ?? id, id_cliente: cliente.id, ref: `api:${parcela.id_parcela}`, valor: parte, data: hojeISO(), forma });
+          salvarStore(store);
+        } else {
+          const store = lerStore();
+          const reg = store.pagamentos.find((x) => x.id === resposta.id_pagamento);
+          if (reg) { reg.forma = forma; salvarStore(store); }
+        }
+      } catch (e) {
+        e.concluidos = feitos; // pagamentos que já passaram antes do erro
+        throw e;
+      }
+    }
+    return { pagamentos: feitos };
+  }
+
   // Texto para o aviso das telas quando algum dado está vindo do fallback local.
   function avisoLocal() {
     const itens = [...usoLocal].map((k) => ROTULOS_LOCAIS[k]).filter(Boolean);
@@ -377,5 +593,6 @@
   FC.clientes = {
     listarClientes, obterCliente, obterResumo, obterResumos, obterHistorico, obterParcelasAbertas,
     registrarPagamento, alterarLimite, cadastrarCliente, avisoLocal,
+    editarCliente, excluirCliente, registrarVenda, registrarBaixa, somarMeses,
   };
 })();

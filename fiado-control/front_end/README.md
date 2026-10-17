@@ -136,3 +136,34 @@ Observações para o back-end:
 * `CORS_ALLOWED_ORIGINS` precisa incluir a origem do front (ex.: `http://localhost` ou `:8080` no Docker).
 * `POST /clientes` ainda não grava; o front guarda o cliente criado localmente até a gravação existir.
 * O cadastro não envia `limite_credito` no POST (contrato): o limite inicial é aplicado depois pela rota de limite.
+
+
+## Telas de vendas e pagamentos
+
+| Tela | Página | Script | Estilo |
+| --- | --- | --- | --- |
+| Nova Venda (cliente, produtos, fiado / a prazo, parcelas, desconto) | `pages/nova-venda.html` (aceita `?cliente=<id>`) | `js/pages/nova-venda.js` | `css/pages/nova-venda.css` |
+| Registrar Pagamento / Baixa (parcelas em aberto, baixa parcial, forma de pagamento) | `pages/registrar-pagamento.html` (aceita `?cliente=<id>`) | `js/pages/registrar-pagamento.js` | `css/pages/registrar-pagamento.css` |
+| Editar / excluir cliente | botões na linha de `pages/clientes.html` | `js/pages/clientes.js` + `js/components/cadastro-cliente.js` | — |
+
+Arquivos novos compartilhados:
+
+```text
+js/services/produtos.js          catálogo de produtos (localStorage)
+js/components/cliente-busca.js   campo de busca de cliente (nome, CPF ou telefone) com sugestões
+js/components/produto-modal.js   modal "Adicionar produto" (máscara de R$, quantidade, catálogo)
+```
+
+`FC.ui.confirmar()` (em `js/shared/ui.js`) abre um diálogo de confirmação reutilizável.
+
+### O que ainda é guardado só no navegador
+
+O back-end atual não tem estas rotas/tabelas, então o front usa o fallback local (com aviso amarelo):
+
+* **Produtos e itens da venda** – `POST /vendas` só recebe o valor total (já com desconto).
+* **Desconto** e **forma de pagamento** da baixa – não existem no contrato.
+* **Editar cliente** (`PUT /clientes/{id}`) e **excluir cliente** (`DELETE /clientes/{id}`).
+* **Histórico** (`GET /clientes/{id}/historico`).
+
+Assim que as rotas existirem, o front passa a usá-las sozinho (404/405 = usa o fallback; qualquer outra resposta = usa a API).
+Excluir cliente é bloqueado enquanto houver valor em aberto.

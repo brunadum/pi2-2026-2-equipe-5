@@ -1,7 +1,8 @@
 // Modal "Cadastro Rápido de Cliente" (namespace global FC.cadastroCliente).
 //
-// Uso: FC.cadastroCliente.init({ obterCpfs: () => Set<string>, aoCadastrar: (cliente) => void });
-//      FC.cadastroCliente.abrir();
+// Uso: FC.cadastroCliente.init({ obterCpfs: () => Set<string>, aoCadastrar: (cliente) => void, aoEditar: (cliente) => void });
+//      FC.cadastroCliente.abrir();            → cadastro de um novo cliente
+//      FC.cadastroCliente.abrir(cliente);     → edição de um cliente existente
 (function () {
   const FC = (window.FC = window.FC || {});
   const { apenasDigitos, escapeHtml } = FC.format;
@@ -11,7 +12,8 @@
   const OBRIGATORIOS = ["nome", "cpf", "telefone"];
   const CAMPOS = ["nome", "cpf", "telefone", "limite", "rua", "numero"];
 
-  let opcoes = { obterCpfs: () => new Set(), aoCadastrar: () => {} };
+  let opcoes = { obterCpfs: () => new Set(), aoCadastrar: () => {}, aoEditar: () => {} };
+  let editando = null; // cliente em edição (null = cadastro novo)
   let modal, form, alerta, enviar, entradas, erros, rua;
   let tocados = new Set();
   let enviando = false;
@@ -29,7 +31,7 @@
       if (!d) return "Informe o CPF.";
       if (d.length < 11) return "CPF incompleto.";
       if (!validarCpf(d)) return "CPF inválido. Confira os números digitados.";
-      if (opcoes.obterCpfs().has(d)) return "Já existe um cliente cadastrado com este CPF.";
+      if (opcoes.obterCpfs().has(d) && !(editando && editando.cpf === d)) return "Já existe um cliente cadastrado com este CPF.";
       return "";
     },
     telefone(v) {
@@ -202,7 +204,7 @@
       entradas.cpf.focus();
       return;
     } else {
-      alerta.textContent = e.mensagem || "Não foi possível cadastrar o cliente. Tente novamente.";
+      alerta.textContent = e.mensagem || (editando ? "Não foi possível salvar as alterações. Tente novamente." : "Não foi possível cadastrar o cliente. Tente novamente.");
     }
     alerta.hidden = false;
   }
@@ -224,17 +226,27 @@
     definirEnviando(true);
     try {
       const ruaTexto = entradas.rua.value.trim();
-      const cliente = await FC.clientes.cadastrarCliente({
+      const dados = {
         nome: entradas.nome.value,
         cpf: entradas.cpf.value,
         telefone: entradas.telefone.value,
         limite: masks.valorMoeda(entradas.limite) || 0,
         endereco: ruaTexto ? { logradouro_bairro: ruaTexto, numero: entradas.numero.value.trim() } : null,
-      });
-      definirEnviando(false);
-      modal.fechar();
-      FC.ui.toast(`Cliente ${cliente.nome} cadastrado com sucesso.`);
-      opcoes.aoCadastrar(cliente);
+      };
+      if (editando) {
+        const original = editando;
+        await FC.clientes.editarCliente(original, dados);
+        definirEnviando(false);
+        modal.fechar();
+        FC.ui.toast(`Cliente ${dados.nome.trim()} atualizado com sucesso.`);
+        opcoes.aoEditar({ ...original, nome: dados.nome.trim() });
+      } else {
+        const cliente = await FC.clientes.cadastrarCliente(dados);
+        definirEnviando(false);
+        modal.fechar();
+        FC.ui.toast(`Cliente ${cliente.nome} cadastrado com sucesso.`);
+        opcoes.aoCadastrar(cliente);
+      }
     } catch (e) {
       definirEnviando(false);
       aplicarErroServidor(e);
@@ -254,7 +266,7 @@
 
   function init(config = {}) {
     opcoes = { ...opcoes, ...config };
-    modal = FC.ui.criarModal(document.getElementById("modal-cliente"), { aoFechar: limpar });
+    modal = FC.ui.criarModal(document.getElementById("modal-cliente"), { aoFechar: () => { limpar(); editando = null; textosDoModo(); } });
     form = document.getElementById("form-cliente");
     alerta = document.getElementById("cli-alerta");
     enviar = document.getElementById("cli-enviar");
@@ -295,8 +307,26 @@
     form.addEventListener("submit", submeter);
   }
 
-  function abrir() {
+  function textosDoModo() {
+    document.getElementById("modal-cliente-titulo").textContent = editando ? "Editar Cliente" : "Cadastro Rápido de Cliente";
+    enviar.textContent = editando ? "Salvar alterações" : "Cadastrar cliente";
+    document.querySelector('label[for="cli-limite"]').textContent = editando ? "Limite de crédito" : "Limite de crédito inicial";
+  }
+
+  // Sem argumento: novo cliente. Com `cliente`: edita aquele cliente.
+  function abrir(cliente) {
     limpar();
+    editando = cliente || null;
+    textosDoModo();
+    if (editando) {
+      entradas.nome.value = editando.nome || "";
+      entradas.cpf.value = FC.masks.formatarCpf(editando.cpf || "");
+      entradas.telefone.value = FC.masks.formatarTelefone(editando.telefone?.[0] || "");
+      masks.definirMoeda(entradas.limite, editando.limite_credito || 0);
+      entradas.rua.value = editando.endereco?.logradouro_bairro || "";
+      entradas.numero.value = editando.endereco?.numero || "";
+      atualizar();
+    }
     modal.abrir();
   }
 

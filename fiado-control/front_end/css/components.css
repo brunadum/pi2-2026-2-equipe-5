@@ -131,3 +131,108 @@
   .modal { padding: 18px 16px 16px; }
   .modal-footer .legend { display: none; }
 }
+
+/* combobox de endereço */
+.combo { position: relative; }
+.combo-list {
+  position: absolute; z-index: 5; top: calc(100% + 4px); left: 0; right: 0;
+  max-height: 232px; margin: 0; padding: 4px; overflow-y: auto; list-style: none;
+  background: #fff; border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 12px 28px rgba(20, 40, 70, .14);
+}
+.combo-list[hidden] { display: none; }
+.combo-list li { padding: 8px 10px; border-radius: 7px; color: var(--ink); font-size: 13px; line-height: 1.3; cursor: pointer; }
+.combo-list li small { display: block; margin-top: 2px; color: var(--muted); font-size: 11px; }
+.combo-list li[role="option"]:hover, .combo-list li[aria-selected="true"] { background: #eef4ff; }
+.combo-list li.combo-msg { color: var(--muted); font-size: 12px; cursor: default; }
+.combo-list li.combo-credito { padding: 4px 10px 2px; color: #8393ad; font-size: 10px; cursor: default; }
+
+/* ---------- botões extras ---------- */
+.btn-danger { color: #fff; background: #dc2626; border-color: #dc2626; }
+.btn-danger:hover:not(:disabled) { background: #b91c1c; border-color: #b91c1c; }
+.btn-block { width: 100%; }
+.btn-sm { min-height: 32px; padding: 0 12px; font-size: 12px; }
+.icon-btn.danger:hover { color: #d92d20; background: #fff0f0; }
+.icon-btn svg { width: 17px; height: 17px; }
+.row-actions { display: inline-flex; align-items: center; gap: 2px; }
+
+/* ---------- radio e checkbox customizados ---------- */
+.check-line { display: flex; align-items: center; gap: 9px; color: var(--ink); font-size: 13px; cursor: pointer; }
+.check-line input { position: absolute; opacity: 0; pointer-events: none; }
+.check-line .mark {
+  flex: 0 0 18px; width: 18px; height: 18px; display: grid; place-items: center;
+  background: #fff; border: 1.5px solid #c4d1e4; transition: all .12s ease;
+}
+.check-line input[type="radio"] + .mark { border-radius: 50%; }
+.check-line input[type="checkbox"] + .mark { border-radius: 5px; }
+.check-line input[type="radio"]:checked + .mark { border-color: var(--blue); box-shadow: inset 0 0 0 4px #fff, inset 0 0 0 10px var(--blue); }
+.check-line input[type="checkbox"]:checked + .mark { background: var(--blue); border-color: var(--blue); }
+.check-line input[type="checkbox"]:checked + .mark::after {
+  content: ""; width: 5px; height: 9px; margin-top: -2px; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg);
+}
+.check-line input:focus-visible + .mark { outline: 2px solid #7aa5ff; outline-offset: 2px; }
+.check-line input:disabled + .mark { opacity: .45; }
+.check-line:has(input:disabled) { cursor: not-allowed; color: var(--muted); }
+.check-line input:checked ~ .check-text { font-weight: 650; }
+
+/* ---------- contador de quantidade ---------- */
+.stepper { display: inline-flex; align-items: center; border: 1px solid #d8e2ef; border-radius: 8px; background: #fff; overflow: hidden; }
+.stepper button { width: 30px; height: 32px; border: 0; color: var(--ink); background: #f6f9fd; font-size: 16px; line-height: 1; }
+.stepper button:hover:not(:disabled) { background: #e8f0fc; }
+.stepper button:disabled { color: #b4c0d3; cursor: not-allowed; }
+.stepper input { width: 46px; height: 32px; padding: 0; border: 0; border-radius: 0; text-align: center; color: var(--ink); font-size: 13px; font-weight: 600; outline: 0; }
+.stepper input:focus { box-shadow: inset 0 0 0 2px #cfe0ff; }
+
+/* ---------- confirmação (diálogo) ---------- */
+.modal.modal-sm { width: min(100%, 400px); }
+.confirm-text { margin: 0 0 4px; color: var(--muted); font-size: 13px; line-height: 1.55; }
+.confirm-icon { display: grid; place-items: center; width: 42px; height: 42px; margin-bottom: 12px; border-radius: 11px; color: #d92d20; background: #fff0f0; }
+.confirm-icon svg { width: 22px; height: 22px; }
+
+/* ---------- caixa de erro inesperado ---------- */
+.erro-box { display: grid; justify-items: center; gap: 12px; max-width: 460px; margin: 60px auto; padding: 30px 24px; text-align: center; background: #fff; border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 10px 30px rgba(20, 40, 70, .08); }
+.erro-box h2 { margin: 0; color: #b42318; font-size: 18px; }
+.erro-box p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+
+.combo-list li.combo-acao { margin-top: 2px; padding-top: 9px; border-top: 1px solid #edf1f7; border-radius: 0 0 7px 7px; color: var(--blue); font-weight: 600; }
+.combo-list li.combo-acao:hover, .combo-list li.combo-acao[aria-selected="true"] { background: #eef4ff; }
+
+/* ---------- vendas e pagamentos (compartilhado) ---------- */
+.panel-label { display: block; margin: 0 0 10px; color: var(--muted); font-size: 14px; font-weight: 600; }
+.busca-linha { display: flex; align-items: flex-start; gap: 10px; }
+.busca-linha .form-field { flex: 1; margin-bottom: 0; }
+.busca-linha .btn { height: 40px; }
+.btn-icone { width: 44px; padding: 0; }
+.btn-icone svg { width: 18px; height: 18px; }
+.opcoes h2 { margin: 0 0 18px; font-size: 16px; }
+.grupo { margin: 0 0 16px; padding: 0; border: 0; min-width: 0; }
+.grupo legend { padding: 0; margin-bottom: 9px; color: #36445d; font-size: 12px; font-weight: 600; }
+.radios-linha { display: flex; gap: 22px; flex-wrap: wrap; }
+.radios-coluna { display: grid; gap: 11px; }
+.acoes-form { display: grid; grid-template-columns: 1fr 1.25fr; gap: 12px; margin-top: 18px; }
+.acoes-form .btn { min-height: 42px; }
+.requisito { min-height: 18px; margin: 10px 0 0; text-align: center; }
+.requisito[hidden] { display: none; }
+.cell-center, .data-table th.cell-center { text-align: center; }
+.chip {
+  display: inline-flex; align-items: baseline; gap: 6px; padding: 6px 11px; color: var(--ink);
+  background: #f3f6fb; border: 1px solid #e2eaf5; border-radius: 999px; font-size: 12px; font-weight: 600;
+}
+.chip small { color: var(--muted); font-weight: 500; font-size: 11px; }
+.chip:hover { background: #e8f0fc; border-color: #c4d6f5; }
+.chips { display: flex; flex-wrap: wrap; gap: 7px; }
+.chips-bloco { margin-top: 16px; }
+.chips-bloco[hidden] { display: none; }
+.chips-titulo { display: block; margin-bottom: 8px; color: var(--muted); font-size: 11px; font-weight: 600; }
+.segmented-sm button { min-height: 24px; padding: 0 10px; font-size: 11px; }
+.stepper-sm button { width: 24px; height: 26px; font-size: 14px; }
+.stepper-sm input { width: 38px; height: 26px; font-size: 12px; }
+
+/* ---------- controle segmentado ---------- */
+.segmented { display: inline-flex; gap: 2px; padding: 3px; background: #f3f6fb; border-radius: 9px; }
+.segmented button {
+  min-height: 30px; padding: 0 14px; border: 0; border-radius: 7px;
+  color: var(--muted); background: transparent; font-size: 12px; font-weight: 500;
+}
+.segmented button:hover { color: var(--ink); }
+.segmented button[aria-pressed="true"] { color: var(--ink); background: #fff; font-weight: 700; box-shadow: 0 1px 3px rgba(27, 48, 79, .1); }
+
