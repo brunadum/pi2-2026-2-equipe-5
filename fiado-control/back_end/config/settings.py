@@ -28,7 +28,7 @@ DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
 ALLOWED_HOSTS = os.environ.get(
     'ALLOWED_HOSTS',
-    'localhost,127.0.0.1,10.5.31.57'
+    'localhost,127.0.0.1,10.5.31.57,testserver'
 ).split(',')
 
 
@@ -81,14 +81,25 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # https://docs.djangoproject.com/en/6.1/ref/settings/#databases
 
 
+def _get_db_host():
+    if 'DB_HOST' in os.environ:
+        return os.environ['DB_HOST']
+    import socket
+    try:
+        socket.gethostbyname('db')
+        return 'db'
+    except socket.error:
+        return 'localhost'
+
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'fiadocontrol',
-        'USER': 'admin',
-        'PASSWORD': 'adFiadPi2',
-        'HOST': 'db',
-        'PORT': '5432',
+        'NAME': os.environ.get('DB_NAME', 'fiadocontrol'),
+        'USER': os.environ.get('DB_USER', 'admin'),
+        'PASSWORD': os.environ.get('DB_PASSWORD', 'adFiadPi2'),
+        'HOST': _get_db_host(),
+        'PORT': os.environ.get('DB_PORT', '5432'),
     }
 }
 
