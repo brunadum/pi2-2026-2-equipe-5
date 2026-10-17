@@ -11,7 +11,8 @@ togglePasswordButton.addEventListener("click", () => {
   togglePasswordButton.setAttribute("title", showingPassword ? "Mostrar senha" : "Ocultar senha");
 });
 
-loginForm.addEventListener("submit", (event) => {
+
+loginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
   const username = usernameInput.value.trim();
@@ -24,8 +25,36 @@ loginForm.addEventListener("submit", (event) => {
     return;
   }
 
-  // A autenticação ainda é demonstrativa; qualquer credencial preenchida segue para o painel.
+  //conexão front end e back end 
+
+  try{
+    const response=await fetch("http://localhost:8001/api/login/",{
+      method:"POST",
+      headers:{
+         "Content-Type": "application/json"
+      },
+      body:JSON.stringify({
+        email:username,
+        senha: password
+      })
+    })
+
+    const data= await response.json()
+    console.log("Status HTTP:", response.status);
+    console.log("Resposta da API:", data);
+    if (!response.ok) {
+      showInfo(data.erro || "Usuário ou senha inválidos.", "#b42318");
+      return;
+    }
+     // A autenticação ainda é demonstrativa; qualquer credencial preenchida segue para o painel.
   window.location.href = "dashboard.html";
+
+  }catch(error){
+       showInfo("Não foi possível conectar ao servidor.", "#b42318");
+  console.error("Erro no login:", error);
+
+  }
+
 });
 
 document.querySelector("#forgot-link").addEventListener("click", (event) => {
@@ -38,8 +67,8 @@ document.querySelector("#access-link").addEventListener("click", (event) => {
   showInfo("A solicitação de acesso ainda não está disponível.");
 });
 
-function showInfo(message) {
+function showInfo(message,  color = "#52627d" ){
   formMessage.textContent = message;
-  formMessage.style.color = "#52627d";
+  formMessage.style.color = color;
   formMessage.classList.add("visible");
 }
