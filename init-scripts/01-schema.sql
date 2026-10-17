@@ -54,3 +54,13 @@ CREATE TABLE configuracao (
     definido_por INT NOT NULL,
     FOREIGN KEY (definido_por) REFERENCES usuario(id_usuario)
 );
+
+CREATE TABLE recebimento (
+    id_recebimento SERIAL PRIMARY KEY,
+    id_pagamento INT NOT NULL,
+    valor_recebido DECIMAL(10,2) NOT NULL,
+    data_pagamento DATE NOT NULL DEFAULT CURRENT_DATE,
+    id_usuario INT,
+    FOREIGN KEY (id_pagamento) REFERENCES pagamento(id_pagamento) ON DELETE CASCADE,
+    FOREIGN KEY (id_usuario) REFERENCES usuario(id_usuario)
+);
