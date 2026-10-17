@@ -566,3 +566,146 @@ class Issue46RegressaoTests(RotasBase):
         r = self.post('/api/vendas', self._venda(data_primeiro_vencimento='2028-01-31', quantidade_parcelas=3))
         self.assertEqual(r.status_code, 201)
         self.assertEqual([p['data_vencimento'] for p in r.json()['parcelas']], ['2028-01-31', '2028-02-29', '2028-03-31'])
+
+
+class RegrasNegocioTests(RotasBase):
+    """Critérios RN01–RN03 da issue #47 sobre transações reais PostgreSQL."""
+
+    def venda(self, valor=100, **extra):
+        dados = {'id_cliente': 5, 'modalidade': 'a_prazo', 'valor_total': valor,
+                 'quantidade_parcelas': 2,
+                 'data_primeiro_vencimento': (date.today() + timedelta(days=30)).isoformat()}
+        dados.update(extra)
+        return self.post('/api/vendas', dados)
+
+    def saldo(self):
+        resposta = self.client.get('/api/clientes/5/saldo')
+        self.assertEqual(resposta.status_code, 200)
+        return resposta.json()
+
+    def assertRejeitada(self, resposta, motivo):
+        self.assertEqual(resposta.status_code, 422)
+        corpo = resposta.json()
+        self.assertEqual(corpo['status'], 'rejeitada')
+        self.assertEqual(corpo['motivo'], motivo)
+        self.assertIn('id_venda', corpo)
+        self.assertNotIn('erro', corpo)
+        with connection.cursor() as cursor:
+            cursor.execute('SELECT status, motivo_rejeicao FROM venda WHERE id_venda = %s', [corpo['id_venda']])
+            self.assertEqual(cursor.fetchone(), ('rejeitada', motivo))
+            cursor.execute('SELECT COUNT(*) FROM pagamento WHERE id_venda = %s', [corpo['id_venda']])
+            self.assertEqual(cursor.fetchone()[0], 0)
+
+    def test_rn01_compara_valor_com_limite_disponivel_apos_venda(self):
+        self.assertEqual(self.venda(900).status_code, 201)
+        antes = self.saldo()
+        self.assertEqual(antes['saldo_devedor'], 900)
+        self.assertEqual(antes['limite_disponivel'], 100)
+        self.assertRejeitada(self.venda(100.01), 'limite_credito_excedido')
+        self.assertEqual(self.saldo(), antes)
+
+    def test_rn01_permite_venda_exatamente_no_limite_disponivel(self):
+        self.assertEqual(self.venda(900).status_code, 201)
+        self.assertEqual(self.venda(100).status_code, 201)
+        self.assertEqual(self.saldo()['limite_disponivel'], 0)
+        self.assertEqual(self.saldo()['saldo_devedor'], 1000)
+
+    def test_rn02_usa_vencimento_real_mesmo_com_status_pendente(self):
+        venda = self.venda().json()
+        with connection.cursor() as cursor:
+            cursor.execute("UPDATE pagamento SET data_vencimento = %s, status = 'pendente' WHERE id_pagamento = %s",
+                           [date.today() - timedelta(days=1), venda['parcelas'][0]['id_parcela']])
+        antes = self.saldo()
+        self.assertTrue(antes['possui_parcelas_atrasadas'])
+        self.assertGreater(antes['limite_disponivel'], 1)
+        self.assertRejeitada(self.venda(1), 'parcelas_em_atraso')
+        self.assertEqual(self.saldo(), antes)
+
+    def test_rn02_parcela_que_vence_hoje_nao_bloqueia_venda(self):
+        venda = self.venda().json()
+        with connection.cursor() as cursor:
+            cursor.execute('UPDATE pagamento SET data_vencimento = %s WHERE id_venda = %s',
+                           [date.today(), venda['id_venda']])
+        self.assertFalse(self.saldo()['possui_parcelas_atrasadas'])
+        self.assertEqual(self.venda(1).status_code, 201)
+
+    def test_rn02_parcial_vencida_bloqueia_ate_quitacao(self):
+        venda = self.venda().json()
+        pid = venda['parcelas'][0]['id_parcela']
+        with connection.cursor() as cursor:
+            cursor.execute('UPDATE pagamento SET data_vencimento = %s WHERE id_pagamento = %s',
+                           [date.today() - timedelta(days=1), pid])
+        parcial = self.post('/api/pagamentos', {'id_parcela': pid, 'valor_recebido': 20})
+        self.assertEqual(parcial.status_code, 201)
+        self.assertTrue(self.saldo()['possui_parcelas_atrasadas'])
+        self.assertRejeitada(self.venda(1), 'parcelas_em_atraso')
+        restante = parcial.json()['saldo_parcela']
+        total = self.post('/api/pagamentos', {'id_parcela': pid, 'valor_recebido': restante})
+        self.assertEqual(total.status_code, 201)
+        self.assertFalse(self.saldo()['possui_parcelas_atrasadas'])
+        self.assertEqual(self.venda(1).status_code, 201)
+
+    def test_rn03_saldo_e_limite_mudam_apos_venda_parcial_e_quitacao(self):
+        self.assertEqual(self.saldo()['saldo_devedor'], 0)
+        venda = self.venda(300).json()
+        self.assertEqual(self.saldo()['saldo_devedor'], 300)
+        self.assertEqual(self.saldo()['limite_disponivel'], 700)
+        pid = venda['parcelas'][0]['id_parcela']
+        parcial = self.post('/api/pagamentos', {'id_parcela': pid, 'valor_recebido': 50})
+        self.assertEqual(parcial.status_code, 201)
+        self.assertEqual(parcial.json()['saldo_devedor_cliente'], 250)
+        self.assertEqual(self.saldo()['saldo_devedor'], 250)
+        self.assertEqual(self.saldo()['limite_disponivel'], 750)
+        self.assertEqual(self.post('/api/pagamentos', {'id_parcela': pid, 'valor_recebido': 100}).status_code, 201)
+        self.assertEqual(self.saldo()['saldo_devedor'], 150)
+        self.assertEqual(self.saldo()['limite_disponivel'], 850)
+
+    def saldo_em_outra_conexao(self):
+        def consultar():
+            try:
+                return Client().get('/api/clientes/5/saldo').json()['saldo_devedor']
+            finally:
+                connections['default'].close()
+
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            return pool.submit(consultar).result(timeout=10)
+
+    def test_rn03_venda_atualiza_saldo_dentro_da_mesma_transacao(self):
+        observados = []
+        parcelas_inseridas = 0
+
+        def observar(execute, sql, params, many, context):
+            nonlocal parcelas_inseridas
+            resultado = execute(sql, params, many, context)
+            if 'INSERT INTO pagamento ' in sql:
+                parcelas_inseridas += 1
+                if parcelas_inseridas == 2:
+                    self.assertTrue(connection.in_atomic_block)
+                    observados.append(self.saldo()['saldo_devedor'])
+                    self.assertEqual(self.saldo_em_outra_conexao(), 0)
+            return resultado
+
+        with connection.execute_wrapper(observar):
+            self.assertEqual(self.venda().status_code, 201)
+        self.assertEqual(observados, [100])
+        self.assertEqual(self.saldo_em_outra_conexao(), 100)
+
+    def test_rn03_pagamento_atualiza_saldo_dentro_da_mesma_transacao(self):
+        venda = self.venda().json()
+        pid = venda['parcelas'][0]['id_parcela']
+        observados = []
+
+        def observar(execute, sql, params, many, context):
+            resultado = execute(sql, params, many, context)
+            if sql.startswith('UPDATE pagamento SET status'):
+                self.assertTrue(connection.in_atomic_block)
+                observados.append(self.saldo()['saldo_devedor'])
+                self.assertEqual(self.saldo_em_outra_conexao(), 100)
+            return resultado
+
+        with connection.execute_wrapper(observar):
+            resposta = self.post('/api/pagamentos', {'id_parcela': pid, 'valor_recebido': 20})
+        self.assertEqual(resposta.status_code, 201)
+        self.assertEqual(observados, [80])
+        self.assertEqual(resposta.json()['saldo_devedor_cliente'], 80)
+        self.assertEqual(self.saldo_em_outra_conexao(), 80)
