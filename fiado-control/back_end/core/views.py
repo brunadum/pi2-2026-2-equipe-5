@@ -1,7 +1,7 @@
 import calendar
 import json
 from datetime import date, timedelta
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from django.core.serializers.json import DjangoJSONEncoder
 
@@ -10,6 +10,10 @@ from django.db import connection, transaction
 from django.views.decorators.csrf import csrf_exempt
 
 from .financeiro import CENTAVO, ZERO, consultar_parcelas, identificador, validar_valor
+from .validacoes import (
+    campos_ausentes, cpf_valido, data_iso, filtro_cpf, filtro_telefone,
+    normalizar_cpf, normalizar_telefone,
+)
 
 
 class APIJSONEncoder(DjangoJSONEncoder):
@@ -36,8 +40,8 @@ def _erro(codigo, mensagem, status, **extra):
 def _ler_json(request):
     """Devolve o corpo como dict, ou None se não for um JSON de objeto."""
     try:
-        dados = json.loads(request.body)
-    except (ValueError, UnicodeDecodeError):
+        dados = json.loads(request.body, parse_float=Decimal)
+    except (ValueError, UnicodeDecodeError, InvalidOperation):
         return None
     return dados if isinstance(dados, dict) else None
 
@@ -160,25 +164,31 @@ def _cadastrar_cliente(request):
     dados = _ler_json(request)
     if dados is None:
         return _json_invalido()
-    faltando = [c for c in CAMPOS_OBRIGATORIOS_CLIENTE if dados.get(c) in (None, "", [])]
-    faltando += [c for c in ('nome', 'cpf') if isinstance(dados.get(c), str) and not dados[c].strip() and c not in faltando]
+    faltando = campos_ausentes(dados, CAMPOS_OBRIGATORIOS_CLIENTE)
     if faltando:
         return _erro('campo_obrigatorio', 'Campos obrigatórios ausentes', 400, campos=faltando)
     nome = dados['nome']
-    cpf = _apenas_digitos(dados['cpf']) if isinstance(dados['cpf'], str) else ''
+    cpf = normalizar_cpf(dados['cpf'])
     telefones = dados['telefone']
-    if (not isinstance(nome, str) or not 1 <= len(nome.strip()) <= 100
-            or len(cpf) != 11 or not cpf.isascii()
-            or not isinstance(telefones, list) or not telefones
-            or any(not isinstance(t, str) or not 1 <= len(t.strip()) <= 20 for t in telefones)):
-        return _erro('campo_invalido', 'Confira nome (até 100 caracteres), CPF (11 dígitos) e telefone (lista de textos até 20 caracteres)', 400)
-    telefones = list(dict.fromkeys(t.strip() for t in telefones))
+    if not isinstance(nome, str) or not 1 <= len(nome.strip()) <= 100:
+        return _erro('campo_invalido', 'Nome deve ser texto com até 100 caracteres', 400)
+    if cpf is None:
+        return _erro('cpf_invalido', 'CPF deve conter 11 dígitos, com ou sem a máscara XXX.XXX.XXX-XX', 422)
+    if not isinstance(telefones, list):
+        return _erro('telefone_invalido', 'Telefone deve ser uma lista de números brasileiros com DDD', 400)
+    telefones = [normalizar_telefone(t) for t in telefones]
+    if not telefones or any(t is None for t in telefones):
+        return _erro('telefone_invalido', 'Informe telefone fixo ou celular com DDD e DDI 55 opcional', 400)
+    telefones = list(dict.fromkeys(telefones))
     with transaction.atomic(), connection.cursor() as cursor:
         # Serializa apenas cadastros com o mesmo CPF, incluindo o seed formatado.
         cursor.execute('SELECT pg_advisory_xact_lock(%s)', [int(cpf)])
         cursor.execute("SELECT 1 FROM cliente WHERE REGEXP_REPLACE(cpf, '[^0-9]', '', 'g') = %s", [cpf])
         if cursor.fetchone():
-            return _erro('cpf_invalido', 'CPF já cadastrado para outro cliente', 422)
+            return _erro('cpf_duplicado', 'CPF já cadastrado para outro cliente', 409)
+        # O seed contém CPFs ilustrativos: duplicidade existente tem precedência.
+        if not cpf_valido(cpf):
+            return _erro('cpf_invalido', 'CPF inválido: confira os dígitos verificadores', 422)
         cursor.execute('INSERT INTO cliente (nome, cpf, limite_credito, ativo) VALUES (%s, %s, 0, TRUE) RETURNING id_cliente', [nome.strip(), cpf])
         id_cliente = cursor.fetchone()[0]
         for telefone in telefones:
@@ -190,11 +200,12 @@ def _cadastrar_cliente(request):
 @csrf_exempt
 def clientes(request):
     if request.method == "GET":
-        lista = _consultar_clientes(
-            request.GET.get("nome", "").strip(),
-            request.GET.get("cpf", "").strip(),
-            request.GET.get("telefone", "").strip(),
-        )
+        nome = request.GET.get('nome', '').strip()
+        cpf = request.GET.get('cpf', '').strip()
+        telefone = request.GET.get('telefone', '').strip()
+        if len(nome) > 100 or cpf and filtro_cpf(cpf) is None or telefone and filtro_telefone(telefone) is None:
+            return _erro('campo_invalido', 'Confira os filtros: nome até 100 caracteres, CPF até 11 dígitos e telefone até 11 dígitos com DDI 55 opcional', 400)
+        lista = _consultar_clientes(nome, filtro_cpf(cpf) if cpf else '', filtro_telefone(telefone) if telefone else '')
         return _json(lista)
 
     if request.method == "POST":
@@ -207,6 +218,9 @@ def clientes(request):
 def cliente_detalhe(request, id_cliente):
     if request.method != "GET":
         return _erro("metodo_nao_permitido", "Método não permitido nesta rota", 405)
+    id_cliente = identificador(id_cliente)
+    if id_cliente is None:
+        return _erro('campo_invalido', 'Identificador do cliente deve ser um inteiro positivo válido', 400)
     cliente = _buscar_cliente(id_cliente)
     if cliente is None:
         return _cliente_nao_encontrado()
@@ -225,6 +239,9 @@ def _parcelas_do_cliente(id_cliente, status=None):
 def cliente_parcelas(request, id_cliente):
     if request.method != "GET":
         return _erro("metodo_nao_permitido", "Método não permitido nesta rota", 405)
+    id_cliente = identificador(id_cliente)
+    if id_cliente is None:
+        return _erro('campo_invalido', 'Identificador do cliente deve ser um inteiro positivo válido', 400)
     if _buscar_cliente(id_cliente) is None:
         return _cliente_nao_encontrado()
 
@@ -238,6 +255,9 @@ def cliente_parcelas(request, id_cliente):
 def cliente_saldo(request, id_cliente):
     if request.method != "GET":
         return _erro("metodo_nao_permitido", "Método não permitido nesta rota", 405)
+    id_cliente = identificador(id_cliente)
+    if id_cliente is None:
+        return _erro('campo_invalido', 'Identificador do cliente deve ser um inteiro positivo válido', 400)
     cliente = _buscar_cliente(id_cliente)
     if cliente is None:
         return _cliente_nao_encontrado()
@@ -273,7 +293,19 @@ def _somar_meses(data, meses):
     return date(ano, mes, dia)
 
 
-def _consultar_vendas():
+def _consultar_vendas(filtros=None):
+    filtros = filtros or {}
+    condicoes = []
+    parametros = []
+    for campo in ('id_cliente', 'status', 'modalidade'):
+        if campo in filtros:
+            condicoes.append(f'v.{campo} = %s')
+            parametros.append(filtros[campo])
+    for campo, operador in (('data_inicio', '>='), ('data_fim', '<=')):
+        if campo in filtros:
+            condicoes.append(f'v.data_venda::date {operador} %s')
+            parametros.append(filtros[campo])
+    where = ' WHERE ' + ' AND '.join(condicoes) if condicoes else ''
     with connection.cursor() as cursor:
         cursor.execute("""
             SELECT
@@ -290,8 +322,7 @@ def _consultar_vendas():
             FROM venda v
             INNER JOIN cliente c
                 ON v.id_cliente = c.id_cliente
-            ORDER BY v.id_venda
-        """)
+        """ + where + ' ORDER BY v.id_venda', parametros)
 
         registros = cursor.fetchall()
 
@@ -331,14 +362,17 @@ def _registrar_venda(request):
     if dados is None:
         return _json_invalido()
 
-    for campo in CAMPOS_OBRIGATORIOS_VENDA:
-        if dados.get(campo) in (None, "", []):
-            return _erro("campo_obrigatorio", f"Campo obrigatório ausente: {campo}", 400)
+    faltando = campos_ausentes(dados, CAMPOS_OBRIGATORIOS_VENDA)
+    if faltando:
+        return _erro('campo_obrigatorio', 'Campos obrigatórios ausentes', 400, campos=faltando)
 
     if dados["modalidade"] not in MODALIDADES:
         return _erro("campo_invalido", "Modalidade deve ser fiado ou a_prazo", 400)
 
     if dados["modalidade"] == "fiado":
+        quantidade_informada = dados.get('quantidade_parcelas', 1)
+        if type(quantidade_informada) is not int or quantidade_informada != 1:
+            return _erro('campo_invalido', 'Venda fiado deve ter exatamente uma parcela', 400)
         quantidade = 1
     else:
         quantidade = dados.get("quantidade_parcelas")
@@ -360,15 +394,15 @@ def _registrar_venda(request):
         return _erro('campo_invalido', 'Cada parcela deve ter pelo menos um centavo', 400)
 
     try:
-        texto_data = dados['data_primeiro_vencimento']
-        primeiro_vencimento = date.fromisoformat(texto_data)
-        if primeiro_vencimento.isoformat() != texto_data:
-            raise ValueError
+        primeiro_vencimento = data_iso(dados['data_primeiro_vencimento'])
         _somar_meses(primeiro_vencimento, quantidade - 1)
     except (ValueError, TypeError, OverflowError):
         return _erro(
             "campo_invalido", "data_primeiro_vencimento deve estar no formato AAAA-MM-DD", 400
         )
+
+    if primeiro_vencimento < date.today():
+        return _erro('vencimento_invalido', 'O primeiro vencimento não pode ser anterior à data de hoje', 422)
 
     with transaction.atomic():
         cliente = _buscar_cliente(id_cliente, bloquear=True)
@@ -449,7 +483,30 @@ def _registrar_venda(request):
 @csrf_exempt
 def vendas(request):
     if request.method == "GET":
-        lista = _consultar_vendas()
+        filtros = {}
+        for campo in ('id_cliente', 'status', 'modalidade', 'data_inicio', 'data_fim'):
+            valor = request.GET.get(campo, '').strip()
+            if not valor:
+                continue
+            if campo == 'id_cliente':
+                valor = identificador(valor)
+                if valor is None:
+                    return _erro('campo_invalido', 'id_cliente deve ser um inteiro positivo válido', 400)
+            elif campo == 'status':
+                if valor not in ('aprovada', 'rejeitada', 'pendente_autorizacao', 'cancelada'):
+                    return _erro('campo_invalido', 'Status de venda inválido', 400)
+            elif campo == 'modalidade':
+                if valor not in MODALIDADES:
+                    return _erro('campo_invalido', 'Modalidade deve ser fiado ou a_prazo', 400)
+            else:
+                try:
+                    valor = data_iso(valor)
+                except ValueError:
+                    return _erro('campo_invalido', 'Datas de filtro devem estar no formato AAAA-MM-DD', 400)
+            filtros[campo] = valor
+        if 'data_inicio' in filtros and 'data_fim' in filtros and filtros['data_inicio'] > filtros['data_fim']:
+            return _erro('campo_invalido', 'data_inicio não pode ser posterior a data_fim', 400)
+        lista = _consultar_vendas(filtros)
         return _json(lista)
 
     if request.method == "POST":
@@ -467,9 +524,9 @@ def _registrar_pagamento(request):
     dados = _ler_json(request)
     if dados is None:
         return _json_invalido()
-    for campo in CAMPOS_OBRIGATORIOS_PAGAMENTO:
-        if dados.get(campo) in (None, '', []):
-            return _erro('campo_obrigatorio', f'Campo obrigatório ausente: {campo}', 400)
+    faltando = campos_ausentes(dados, CAMPOS_OBRIGATORIOS_PAGAMENTO)
+    if faltando:
+        return _erro('campo_obrigatorio', 'Campos obrigatórios ausentes', 400, campos=faltando)
     id_parcela = identificador(dados['id_parcela'])
     recebido = validar_valor(dados['valor_recebido'])
     if id_parcela is None or recebido is None:

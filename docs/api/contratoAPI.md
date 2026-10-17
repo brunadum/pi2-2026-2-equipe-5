@@ -11,6 +11,9 @@ Nomes de campo conferem com o MER (`USUÁRIO`, `CLIENTE`, `VENDA`, `PAGAMENTO`,
 
 - **Base**: `/api`. Os caminhos do REQ aparecem aqui sem o prefixo.
 - **Datas**: `YYYY-MM-DD` (ISO 8601). **Valores**: número decimal, 2 casas.
+- **Validações**: códigos e formatos das rotas implementadas em
+  [formato-de-erros.md](formato-de-erros.md), atualizado pela issue #48.
+  Identificadores inválidos retornam 400; CPF duplicado retorna 409.
 - **Autenticação**: `Authorization: Bearer <token>` em todas as rotas, exceto o login.
 - **Perfis**: Gerente e Funcionário. A coluna *Perfil* segue a seção 3 do REQ.
   `Permissão: x` significa que a rota exige a permissão individual `x` do
@@ -125,13 +128,15 @@ liberar as telas (UC01).
   crédito não é informado aqui: começa em `0.00` e é definido pelo gerente na
   rota 19.
 ```json
-{ "nome": "Maria Souza", "cpf": "12345678900", "telefone": ["88999990000"] }
+{ "nome": "Cliente Exemplo", "cpf": "52998224725", "telefone": ["88999990000"] }
 ```
 - **Saída** (201): mesmo formato da rota 4.
 - **Erros**:
   - 400 `campo_obrigatorio`, listando os campos que faltam (RF03, cenário 2):
     `{ "erro": "campo_obrigatorio", "mensagem": "Campos obrigatórios ausentes", "campos": ["cpf"] }`
-  - 422 `cpf_invalido`: `{ "erro": "cpf_invalido", "mensagem": "CPF já cadastrado para outro cliente" }`
+  - 400 `campo_invalido` / `telefone_invalido`: nome ou telefone fora do formato.
+  - 422 `cpf_invalido`: CPF fora do formato ou com dígitos verificadores inválidos.
+  - 409 `cpf_duplicado`: `{ "erro": "cpf_duplicado", "mensagem": "CPF já cadastrado para outro cliente" }`
 
 ### 6. Editar cliente — `PUT /clientes/{id}`
 
@@ -216,7 +221,8 @@ liberar as telas (UC01).
 - **Requisito**: RF01 · **Regras**: RN01, RN02, RN03
 - **Entrada**: o sistema calcula as parcelas a partir de `quantidade_parcelas`
   e `data_primeiro_vencimento`, em intervalos mensais (RF01, cenário 3). Para
-  `fiado`, `quantidade_parcelas` é 1.
+  `fiado`, `quantidade_parcelas` é 1. O primeiro vencimento deve ser hoje ou
+  uma data futura; cada parcela deve ter pelo menos um centavo.
 ```json
 {
   "id_cliente": 1,
@@ -250,7 +256,8 @@ liberar as telas (UC01).
 ```json
 { "id_venda": 5, "status": "rejeitada", "motivo": "limite_credito_excedido" }
 ```
-- **Erros**: 400 `json_invalido` / `campo_obrigatorio`; 404 `cliente_nao_encontrado`
+- **Erros**: 400 `json_invalido` / `campo_obrigatorio` / `campo_invalido`;
+  404 `cliente_nao_encontrado`; 422 `vencimento_invalido`.
 
 ### 11. Consultar vendas — `GET /vendas`
 
