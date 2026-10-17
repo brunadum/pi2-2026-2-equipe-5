@@ -12,6 +12,7 @@ CREATE TABLE cliente (
     nome VARCHAR(100) NOT NULL,
     cpf VARCHAR(14) UNIQUE NOT NULL,
     limite_credito DECIMAL(10,2) DEFAULT 0.00,
+    credito_bloqueado BOOLEAN NOT NULL DEFAULT FALSE,
     ativo BOOLEAN DEFAULT TRUE
 );
 
@@ -59,8 +60,14 @@ CREATE TABLE recebimento (
     id_recebimento SERIAL PRIMARY KEY,
     id_pagamento INT NOT NULL,
     valor_recebido DECIMAL(10,2) NOT NULL,
+    valor_juros DECIMAL(10,2) NOT NULL DEFAULT 0,
+    valor_multa DECIMAL(10,2) NOT NULL DEFAULT 0,
     data_pagamento DATE NOT NULL DEFAULT CURRENT_DATE,
     id_usuario INT,
     FOREIGN KEY (id_pagamento) REFERENCES pagamento(id_pagamento) ON DELETE CASCADE,
     FOREIGN KEY (id_usuario) REFERENCES usuario(id_usuario)
 );
+
+CREATE INDEX recebimento_parcela_idx ON recebimento (id_pagamento);
+CREATE INDEX venda_cliente_idx ON venda (id_cliente);
+CREATE INDEX pagamento_venda_idx ON pagamento (id_venda);

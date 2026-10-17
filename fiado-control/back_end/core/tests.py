@@ -5,9 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
 from time import sleep
 
-from django.db import connection, connections
-from django.core.management import call_command
-from io import StringIO
+from django.db import connection, connections, transaction
 from django.test import Client, TransactionTestCase
 
 SCHEMA_PATH = Path(__file__).resolve().parent.parent.parent.parent / "init-scripts" / "01-schema.sql"
@@ -40,16 +38,6 @@ class RotasBase(TransactionTestCase):
                 cursor.execute(SCHEMA_PATH.read_text(encoding="utf-8"))
             if SEED_PATH.exists():
                 cursor.execute(SEED_PATH.read_text(encoding="utf-8"))
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS recebimento (
-                    id_recebimento SERIAL PRIMARY KEY,
-                    id_pagamento INT NOT NULL REFERENCES pagamento(id_pagamento) ON DELETE CASCADE,
-                    valor_recebido DECIMAL(10,2) NOT NULL,
-                    data_pagamento DATE NOT NULL DEFAULT CURRENT_DATE,
-                    id_usuario INT REFERENCES usuario(id_usuario)
-                );
-            """)
-        call_command('preparar_issue46', stdout=StringIO())
 
     def post(self, url, corpo):
         return self.client.post(url, json.dumps(corpo), content_type="application/json")
@@ -118,6 +106,28 @@ class ClientesTests(RotasBase):
 
     def test_metodo_nao_permitido(self):
         self.assertErro(self.client.delete("/api/clientes"), 405, "metodo_nao_permitido")
+
+
+class SchemaIssue46Tests(RotasBase):
+    def test_schema_novo_contem_campos_e_indices_sem_comando_adicional(self):
+        # Executa apenas o schema oficial num namespace vazio do banco de testes.
+        with transaction.atomic():
+            with connection.cursor() as cursor:
+                cursor.execute('CREATE SCHEMA validacao_schema_issue46')
+                cursor.execute('SET LOCAL search_path TO validacao_schema_issue46')
+                cursor.execute(SCHEMA_PATH.read_text(encoding='utf-8'))
+                cursor.execute("""
+                    SELECT table_name, column_name FROM information_schema.columns
+                    WHERE table_schema = 'validacao_schema_issue46'
+                """)
+                campos = set(cursor.fetchall())
+                self.assertTrue({('cliente', 'credito_bloqueado'),
+                                 ('recebimento', 'valor_juros'),
+                                 ('recebimento', 'valor_multa')} <= campos)
+                cursor.execute("SELECT indexname FROM pg_indexes WHERE schemaname = 'validacao_schema_issue46'")
+                indices = {linha[0] for linha in cursor.fetchall()}
+                self.assertTrue({'recebimento_parcela_idx', 'venda_cliente_idx', 'pagamento_venda_idx'} <= indices)
+            transaction.set_rollback(True)
 
 
 class ClienteDetalheTests(RotasBase):
@@ -532,15 +542,6 @@ class Issue46RegressaoTests(RotasBase):
     def test_cadastros_simultaneos_mesmo_cpf(self):
         dados = {'nome': 'Concorrente', 'cpf': '123.123.123-12', 'telefone': ['88999999999']}
         self.assertEqual(self._simultaneos('/api/clientes', dados, 'INSERT INTO cliente '), [201, 422])
-
-    def test_preparacao_idempotente_preserva_dados_e_bloqueio(self):
-        self.post('/api/pagamentos', {'id_parcela': 1, 'valor_recebido': 50})
-        with connection.cursor() as cursor:
-            cursor.execute('UPDATE cliente SET credito_bloqueado = TRUE WHERE id_cliente = 5')
-        for _ in range(2):
-            call_command('preparar_issue46', stdout=StringIO())
-        self.assertTrue(self.client.get('/api/clientes/5').json()['credito_bloqueado'])
-        self.assertEqual(self.client.get('/api/clientes/1/saldo').json()['saldo_devedor'], 57)
 
     def test_requisicoes_nao_criam_tabelas(self):
         def sem_ddl(execute, sql, params, many, context):
