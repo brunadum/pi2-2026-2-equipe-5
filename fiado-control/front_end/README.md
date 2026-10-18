@@ -167,3 +167,20 @@ O back-end atual não tem estas rotas/tabelas, então o front usa o fallback loc
 
 Assim que as rotas existirem, o front passa a usá-las sozinho (404/405 = usa o fallback; qualquer outra resposta = usa a API).
 Excluir cliente é bloqueado enquanto houver valor em aberto.
+
+## Relatórios e Configurações
+
+As telas novas estão ligadas à navegação principal e mantêm os arquivos separados por responsabilidade:
+
+| Tela | HTML | CSS | JavaScript |
+| --- | --- | --- | --- |
+| Relatórios e Dashboard Financeiro | `pages/relatorios-dashboard.html` | `css/pages/relatorios-dashboard.css` | `js/pages/relatorios-dashboard.js` |
+| Configurações do Sistema | `pages/configuracoes.html` | `css/pages/configuracoes.css` | `js/pages/configuracoes.js` |
+
+### Contrato necessário no backend
+
+- **Dashboard/relatórios:** `GET /api/dashboard/?periodo=dia|semana|mes`. Para preencher todos os indicadores, é recomendado retornar `faturamento_total`, `total_recebido`, `total_vencido`, `taxa_atraso` (ou `taxa_inadimplencia`), `total_a_receber`, `parcelas_vencidas` e `faturamento_semanal`. A lista `parcelas_vencidas` pode conter `nome`, `data_vencimento`, `dias_atraso` e `valor_parcela`; `faturamento_semanal` deve conter itens com `rotulo` e `valor`.
+- **Configurações:** implementar `GET /api/configuracoes/` e `PUT /api/configuracoes/`. O `GET` deve retornar os valores atuais persistidos no banco. O `PUT` recebe um objeto JSON com `multa_diaria_percentual`, `juros_mensais_percentual`, `desconto_maximo_percentual`, `limite_padrao_cliente`, `bloquear_vendas_atraso`, `permitir_cliente_sem_cpf`, `exigir_senha_venda`, `permitir_venda_parcial`, `operador_cadastrar_cliente`, `operador_registrar_pagamento` e `restringir_relatorios_admin`.
+- **Exportação de pagamentos:** o frontend tenta `GET /api/pagamentos` quando o usuário solicita esse relatório. O contrato descrito acima documenta `POST /api/pagamentos`, mas não garante a listagem; por isso a exportação mostra um aviso se a rota `GET` não existir.
+
+Os nomes e chamadas usados no frontend estão comentados em `js/pages/relatorios-dashboard.js` e `js/pages/configuracoes.js` para facilitar a localização pela equipe de backend. Enquanto `GET/PUT /api/configuracoes/` não existirem, a tela de configurações usa valores demonstrativos e pode guardar as alterações em `localStorage`, identificando explicitamente que elas **não foram gravadas no banco**. Nenhum dos endpoints do backend é alterado por este pacote de frontend.

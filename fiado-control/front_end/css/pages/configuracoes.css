@@ -1,0 +1,224 @@
+/* Estilos exclusivos da tela de Configurações do Sistema. */
+.settings-status {
+  margin: -10px 0 14px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.settings-status.error {
+  color: #b42318;
+}
+
+.settings-status[hidden] {
+  display: none;
+}
+
+.settings-tabs {
+  display: flex;
+  gap: 4px;
+  width: max-content;
+  max-width: 100%;
+  margin-bottom: 24px;
+  padding: 4px;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: #fff;
+}
+
+.settings-tab {
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--muted);
+  background: transparent;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.settings-tab.active {
+  color: var(--ink);
+  background: #f3f6fb;
+  font-weight: 600;
+}
+
+.settings-panel {
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.settings-panel h2 {
+  margin: 0 0 24px;
+  color: var(--ink);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+
+.settings-grid > label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.settings-grid input {
+  width: 100%;
+  min-width: 0;
+  height: 41px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  outline: none;
+  color: var(--ink);
+  background: #fff;
+  font-weight: 400;
+}
+
+.settings-grid input:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px #2862f61a;
+}
+
+.prefix,
+.suffix {
+  display: flex;
+  align-items: center;
+  height: 41px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.prefix > span,
+.suffix > span {
+  padding: 0 12px;
+  flex: 0 0 auto;
+}
+
+.prefix input,
+.suffix input {
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none !important;
+}
+
+.settings-panel section[hidden] {
+  display: none;
+}
+
+.section-description {
+  margin: -10px 0 22px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.extra {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid var(--line);
+}
+
+.extra h3 {
+  margin: 0 0 16px;
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0 0 12px;
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.check input {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--blue);
+}
+
+.settings-footer {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 18px;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+
+.settings-footer p {
+  flex: 1;
+  min-width: 200px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.save-button {
+  padding: 12px 24px;
+  border: 0;
+  border-radius: 8px;
+  color: #fff;
+  background: var(--blue);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.save-button:hover {
+  background: #1d4ed8;
+}
+
+.save-button:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+@media (max-width: 700px) {
+  .settings-panel {
+    padding: 18px;
+  }
+
+  .settings-grid {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+
+  .settings-tabs {
+    width: 100%;
+  }
+
+  .settings-tab {
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+
+  .settings-footer {
+    align-items: stretch;
+  }
+
+  .save-button {
+    width: 100%;
+  }
+}

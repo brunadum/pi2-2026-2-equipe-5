@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Configurações do Sistema | Fiado Control</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/global.css">
+  <link rel="stylesheet" href="../css/layout.css">
+  <link rel="stylesheet" href="../css/pages/configuracoes.css">
+</head>
+<body class="app-page">
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <a class="brand" href="dashboard.html">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M7 12 10 9a2 2 0 0 1 3 0l1 1M5 9l2-2a2 2 0 0 1 3 0l1 1m7 1-2-2a2 2 0 0 0-3 0l-5 5a2 2 0 0 0 3 3l2-2M3 6v12h18V6" /></svg>
+        </span>
+        <span class="brand-copy">
+          <strong>Fiado Control</strong>
+          <small>Gestão de Vendas</small>
+        </span>
+      </a>
+
+      <!-- Navegação compartilhada: manter os caminhos relativos à pasta pages/. -->
+      <nav class="main-nav" aria-label="Navegação principal">
+        <a class="nav-link" href="dashboard.html">
+          <svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.2"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.2"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.2"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.2"/></svg>
+          <span>Dashboard</span>
+        </a>
+        <a class="nav-link" href="nova-venda.html">
+          <svg viewBox="0 0 24 24"><path d="M3 4h2l2.2 11.1a2 2 0 0 0 2 1.6h8.1a2 2 0 0 0 1.9-1.5L21 8H6"/><circle cx="10" cy="20" r="1.2"/><circle cx="18" cy="20" r="1.2"/></svg>
+          <span>Nova Venda</span>
+        </a>
+        <a class="nav-link" href="clientes.html">
+          <svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.3"/><path d="M2.8 20c.4-3.5 2.5-5.3 6.2-5.3s5.8 1.8 6.2 5.3M16 5.2a3.5 3.5 0 0 1 0 6.8M17.2 15c2.4.4 3.7 2.1 4 5"/></svg>
+          <span>Clientes</span>
+        </a>
+        <a class="nav-link" href="registrar-pagamento.html">
+          <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h4"/></svg>
+          <span>Pagamentos</span>
+        </a>
+        <a class="nav-link" href="relatorios-dashboard.html">
+          <svg viewBox="0 0 24 24"><path d="M4 20V11M9.5 20V5M15 20v-7M20.5 20H2.5"/></svg>
+          <span>Relatórios</span>
+        </a>
+        <a class="nav-link active" href="configuracoes.html" aria-current="page">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="m19.4 15 .1.1 1.2 1-1.5 2.6-1.5-.6a7.8 7.8 0 0 1-1.7 1l-.3 1.6h-3l-.3-1.6a7.8 7.8 0 0 1-1.7-1l-1.5.6-1.5-2.6 1.2-1a7.1 7.1 0 0 1 0-2l-1.2-1 1.5-2.6 1.5.6a7.8 7.8 0 0 1 1.7-1l.3-1.6h3l.3 1.6a7.8 7.8 0 0 1 1.7 1l1.5-.6 1.5 2.6-1.2 1a7.1 7.1 0 0 1 0 2Z"/></svg>
+          <span>Configurações</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-bottom">
+        <div class="account-button">
+          <span class="avatar">EF</span>
+          <span class="account-copy">
+            <strong>Edmilson Filho</strong>
+            <small>Gerente</small>
+          </span>
+        </div>
+      </div>
+    </aside>
+
+    <button class="sidebar-backdrop" id="sidebar-backdrop" type="button" aria-label="Fechar menu"></button>
+
+    <main class="main-area">
+      <header class="page-header">
+        <button class="mobile-menu" id="mobile-menu" type="button" aria-label="Abrir menu" aria-expanded="false">☰</button>
+        <div>
+          <h1>Configurações do Sistema</h1>
+          <p>Personalize as variáveis de cobrança, juros, políticas de parcelamento e acessos.</p>
+        </div>
+      </header>
+
+      <!-- O aviso informa se as configurações vieram da API ou do armazenamento temporário local. -->
+      <p class="settings-status" id="settings-status" role="status" aria-live="polite" hidden></p>
+
+      <div class="settings-tabs" role="tablist" aria-label="Categorias de configurações">
+        <button class="settings-tab active" type="button" data-tab="cobranca" role="tab" aria-selected="true">Cobrança e Juros</button>
+        <button class="settings-tab" type="button" data-tab="vendas" role="tab" aria-selected="false">Configurações de venda</button>
+        <button class="settings-tab" type="button" data-tab="operacoes" role="tab" aria-selected="false">Operações autorizadas</button>
+      </div>
+
+      <form class="settings-panel" id="settings-form">
+        <section data-section="cobranca" aria-labelledby="cobranca-heading">
+          <h2 id="cobranca-heading">Taxas de Juros e Limites Padrão</h2>
+          <div class="settings-grid">
+            <label for="multa-diaria">Multa por atraso diário (%)
+              <div class="suffix"><input id="multa-diaria" name="multa_diaria_percentual" type="number" min="0" max="100" step="0.01" required><span>%</span></div>
+            </label>
+            <label for="juros-mensais">Juros mensais (%)
+              <div class="suffix"><input id="juros-mensais" name="juros_mensais_percentual" type="number" min="0" max="100" step="0.01" required><span>%</span></div>
+            </label>
+            <label for="desconto-maximo">Desconto máximo permitido
+              <div class="suffix"><input id="desconto-maximo" name="desconto_maximo_percentual" type="number" min="0" max="100" step="0.01" required><span>%</span></div>
+            </label>
+            <label for="limite-padrao">Limite padrão para novos clientes
+              <div class="prefix"><span>R$</span><input id="limite-padrao" name="limite_padrao_cliente" type="number" min="0" step="0.01" required></div>
+            </label>
+          </div>
+
+          <div class="extra">
+            <h3>Parâmetros Adicionais</h3>
+            <label class="check"><input name="bloquear_vendas_atraso" type="checkbox"><span>Bloquear vendas automaticamente se houver parcela com mais de 30 dias de atraso</span></label>
+            <label class="check"><input name="permitir_cliente_sem_cpf" type="checkbox"><span>Permitir que operadores cadastrem novos clientes sem CPF</span></label>
+            <label class="check"><input name="exigir_senha_venda" type="checkbox"><span>Exigir senha do administrador para toda venda acima de R$ 1.000,00</span></label>
+          </div>
+        </section>
+
+        <section data-section="vendas" aria-labelledby="vendas-heading" hidden>
+          <h2 id="vendas-heading">Configurações de venda</h2>
+          <p class="section-description">Defina quais operações de venda o sistema permite.</p>
+          <label class="check"><input name="permitir_venda_parcial" type="checkbox"><span>Permitir pagamentos parciais de parcelas</span></label>
+        </section>
+
+        <section data-section="operacoes" aria-labelledby="operacoes-heading" hidden>
+          <h2 id="operacoes-heading">Operações autorizadas</h2>
+          <label class="check"><input name="operador_cadastrar_cliente" type="checkbox"><span>Permitir que operadores cadastrem clientes</span></label>
+          <label class="check"><input name="operador_registrar_pagamento" type="checkbox"><span>Permitir que operadores registrem pagamentos</span></label>
+          <label class="check"><input name="restringir_relatorios_admin" type="checkbox"><span>Restringir relatórios financeiros ao administrador</span></label>
+        </section>
+
+        <div class="settings-footer">
+          <p id="save-status" role="status" aria-live="polite">Carregando configurações…</p>
+          <button class="save-button" id="save-settings" type="submit">Salvar configurações</button>
+        </div>
+      </form>
+    </main>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="../js/config.js"></script>
+  <script src="../js/services/api.js"></script>
+  <script src="../js/pages/configuracoes.js"></script>
+</body>
+</html>

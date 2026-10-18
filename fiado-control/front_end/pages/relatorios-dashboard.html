@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Relatórios e Dashboard Financeiro | Fiado Control</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/global.css">
+  <link rel="stylesheet" href="../css/layout.css">
+  <link rel="stylesheet" href="../css/pages/relatorios-dashboard.css">
+</head>
+<body class="app-page">
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <a class="brand" href="dashboard.html">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M7 12 10 9a2 2 0 0 1 3 0l1 1M5 9l2-2a2 2 0 0 1 3 0l1 1m7 1-2-2a2 2 0 0 0-3 0l-5 5a2 2 0 0 0 3 3l2-2M3 6v12h18V6" /></svg>
+        </span>
+        <span class="brand-copy">
+          <strong>Fiado Control</strong>
+          <small>Gestão de Vendas</small>
+        </span>
+      </a>
+
+      <!-- Navegação compartilhada: os links são relativos à pasta pages/. -->
+      <nav class="main-nav" aria-label="Navegação principal">
+        <a class="nav-link" href="dashboard.html">
+          <svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.2"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.2"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.2"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.2"/></svg>
+          <span>Dashboard</span>
+        </a>
+        <a class="nav-link" href="nova-venda.html">
+          <svg viewBox="0 0 24 24"><path d="M3 4h2l2.2 11.1a2 2 0 0 0 2 1.6h8.1a2 2 0 0 0 1.9-1.5L21 8H6"/><circle cx="10" cy="20" r="1.2"/><circle cx="18" cy="20" r="1.2"/></svg>
+          <span>Nova Venda</span>
+        </a>
+        <a class="nav-link" href="clientes.html">
+          <svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.3"/><path d="M2.8 20c.4-3.5 2.5-5.3 6.2-5.3s5.8 1.8 6.2 5.3M16 5.2a3.5 3.5 0 0 1 0 6.8M17.2 15c2.4.4 3.7 2.1 4 5"/></svg>
+          <span>Clientes</span>
+        </a>
+        <a class="nav-link" href="registrar-pagamento.html">
+          <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h4"/></svg>
+          <span>Pagamentos</span>
+        </a>
+        <a class="nav-link active" href="relatorios-dashboard.html" aria-current="page">
+          <svg viewBox="0 0 24 24"><path d="M4 20V11M9.5 20V5M15 20v-7M20.5 20H2.5"/></svg>
+          <span>Relatórios</span>
+        </a>
+        <a class="nav-link" href="configuracoes.html">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="m19.4 15 .1.1 1.2 1-1.5 2.6-1.5-.6a7.8 7.8 0 0 1-1.7 1l-.3 1.6h-3l-.3-1.6a7.8 7.8 0 0 1-1.7-1l-1.5.6-1.5-2.6 1.2-1a7.1 7.1 0 0 1 0-2l-1.2-1 1.5-2.6 1.5.6a7.8 7.8 0 0 1 1.7-1l.3-1.6h3l.3 1.6a7.8 7.8 0 0 1 1.7 1l1.5-.6 1.5 2.6-1.2 1a7.1 7.1 0 0 1 0 2Z"/></svg>
+          <span>Configurações</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-bottom">
+        <div class="account-button">
+          <span class="avatar">EF</span>
+          <span class="account-copy">
+            <strong>Edmilson Filho</strong>
+            <small>Gerente</small>
+          </span>
+        </div>
+      </div>
+    </aside>
+
+    <button class="sidebar-backdrop" id="sidebar-backdrop" type="button" aria-label="Fechar menu"></button>
+
+    <main class="main-area">
+      <header class="page-header report-header">
+        <button class="mobile-menu" id="mobile-menu" type="button" aria-label="Abrir menu" aria-expanded="false">☰</button>
+        <div class="header-copy">
+          <h1>Relatórios e Dashboard Financeiro</h1>
+          <p>Acompanhe a performance financeira geral, taxas de inadimplência e exporte os dados consolidados.</p>
+        </div>
+        <div class="header-actions">
+          <label class="sr-only" for="periodo">Período do relatório</label>
+          <select id="periodo">
+            <option value="dia">Hoje</option>
+            <option value="semana">Últimos 7 dias</option>
+            <option value="mes" selected>Este mês</option>
+          </select>
+          <button class="primary-button" id="exportar" type="button">Exportar planilha</button>
+        </div>
+      </header>
+
+      <!-- O estado fica oculto quando a API responde sem avisos; erros e limitações aparecem aqui. -->
+      <p class="status-message" id="status" role="status" aria-live="polite" hidden></p>
+
+      <section class="report-metrics" aria-label="Indicadores financeiros">
+        <article class="report-card blue">
+          <span class="metric-icon" aria-hidden="true">$</span>
+          <div><span>Faturamento total</span><strong id="faturamento">—</strong></div>
+        </article>
+        <article class="report-card green">
+          <span class="metric-icon" aria-hidden="true">↗</span>
+          <div><span>Total recebido</span><strong id="recebido">—</strong></div>
+        </article>
+        <article class="report-card red">
+          <span class="metric-icon" aria-hidden="true">!</span>
+          <div><span>Total inadimplência</span><strong id="inadimplencia">—</strong></div>
+        </article>
+        <article class="report-card orange">
+          <span class="metric-icon" aria-hidden="true">%</span>
+          <div><span>Taxa de atraso</span><strong id="taxa-atraso">—</strong></div>
+        </article>
+      </section>
+
+      <section class="report-layout" aria-label="Gráfico e relatórios disponíveis">
+        <article class="report-panel chart-panel">
+          <div class="panel-heading">
+            <h2>Faturamento por período</h2>
+            <span>Últimas 4 semanas</span>
+          </div>
+          <div class="weekly-chart" id="grafico" aria-label="Faturamento das últimas quatro semanas">
+            <p class="empty-state">Carregando faturamento…</p>
+          </div>
+        </article>
+
+        <article class="report-panel available-reports">
+          <h2>Relatórios Disponíveis</h2>
+          <button class="export-row" type="button" data-export="vendas">
+            <span><strong>Relatório de vendas</strong><small>Exporta vendas registradas no sistema</small></span>
+            <span aria-hidden="true">⇩</span>
+          </button>
+          <button class="export-row" type="button" data-export="pagamentos">
+            <span><strong>Relatório de pagamentos</strong><small>Histórico de pagamentos e baixas</small></span>
+            <span aria-hidden="true">⇩</span>
+          </button>
+          <button class="export-row" type="button" data-export="clientes">
+            <span><strong>Relatório de clientes</strong><small>Resumo dos clientes cadastrados</small></span>
+            <span aria-hidden="true">⇩</span>
+          </button>
+          <button class="export-row" type="button" data-export="inadimplencia">
+            <span><strong>Relatório de inadimplência</strong><small>Parcelas em atraso</small></span>
+            <span aria-hidden="true">⇩</span>
+          </button>
+        </article>
+      </section>
+    </main>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="../js/config.js"></script>
+  <script src="../js/services/api.js"></script>
+  <script src="../js/pages/relatorios-dashboard.js"></script>
+</body>
+</html>
