@@ -7,10 +7,15 @@ const formMessage = document.querySelector("#form-message");
 togglePasswordButton.addEventListener("click", () => {
   const showingPassword = passwordInput.type === "text";
   passwordInput.type = showingPassword ? "password" : "text";
-  togglePasswordButton.setAttribute("aria-label", showingPassword ? "Mostrar senha" : "Ocultar senha");
-  togglePasswordButton.setAttribute("title", showingPassword ? "Mostrar senha" : "Ocultar senha");
+  togglePasswordButton.setAttribute(
+    "aria-label",
+    showingPassword ? "Mostrar senha" : "Ocultar senha",
+  );
+  togglePasswordButton.setAttribute(
+    "title",
+    showingPassword ? "Mostrar senha" : "Ocultar senha",
+  );
 });
-
 
 loginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -25,36 +30,37 @@ loginForm.addEventListener("submit", async (event) => {
     return;
   }
 
-  //conexão front end e back end 
+  //conexão front end e back end
 
-  try{
-    const response=await fetch("http://localhost:8001/api/login/",{
-      method:"POST",
-      headers:{
-         "Content-Type": "application/json"
+  try {
+    const response = await fetch("http://localhost:8001/api/login/", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
       },
-      body:JSON.stringify({
-        email:username,
-        senha: password
-      })
-    })
+      body: JSON.stringify({
+        email: username,
+        senha: password,
+      }),
+    });
 
-    const data= await response.json()
+    const data = await response.json();
     console.log("Status HTTP:", response.status);
     console.log("Resposta da API:", data);
     if (!response.ok) {
       showInfo(data.erro || "Usuário ou senha inválidos.", "#b42318");
       return;
     }
-     // A autenticação ainda é demonstrativa; qualquer credencial preenchida segue para o painel.
-  window.location.href = "dashboard.html";
 
-  }catch(error){
-       showInfo("Não foi possível conectar ao servidor.", "#b42318");
-  console.error("Erro no login:", error);
-
+    if (data.mensagem === "Login realizado com sucesso" && data.usuario) {
+      window.location.href = "dashboard.html";
+    } else {
+      showInfo("E-mail ou senha inválidos.", "#b42318");
+    }
+  } catch (error) {
+    showInfo("Não foi possível conectar ao servidor.", "#b42318");
+    console.error("Erro no login:", error);
   }
-
 });
 
 document.querySelector("#forgot-link").addEventListener("click", (event) => {
@@ -67,7 +73,7 @@ document.querySelector("#access-link").addEventListener("click", (event) => {
   showInfo("A solicitação de acesso ainda não está disponível.");
 });
 
-function showInfo(message,  color = "#52627d" ){
+function showInfo(message, color = "#52627d") {
   formMessage.textContent = message;
   formMessage.style.color = color;
   formMessage.classList.add("visible");
