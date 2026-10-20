@@ -44,6 +44,7 @@
     edicao: "edições de clientes",
     exclusao: "exclusões de clientes",
     venda: "vendas",
+    excecao: "aprovações e recusas de exceção",
   };
 
   // ------------------------------------------------------------ store local
@@ -54,9 +55,10 @@
       return {
         clientes: s.clientes || [], limites: s.limites || {}, pagamentos: s.pagamentos || [], seq: s.seq || 0,
         edicoes: s.edicoes || {}, excluidos: s.excluidos || [], vendas: s.vendas || [],
+        excecoes: s.excecoes || {}, alteracoesLimite: s.alteracoesLimite || [],
       };
     } catch {
-      return { clientes: [], limites: {}, pagamentos: [], seq: 0, edicoes: {}, excluidos: [], vendas: [] };
+      return { clientes: [], limites: {}, pagamentos: [], seq: 0, edicoes: {}, excluidos: [], vendas: [], excecoes: {}, alteracoesLimite: [] };
     }
   }
 
@@ -228,6 +230,12 @@
     if (!cliente.local && !indisponivel.saldo) {
       try {
         const r = await request(`/clientes/${encodeURIComponent(cliente.id)}/saldo`);
+        // Limite alterado nesta tela enquanto PUT /clientes/{id}/limite não existe no back-end.
+        const alterado = lerStore().limites[cliente.id];
+        if (alterado !== undefined && !cliente.local) {
+          usoLocal.add("limite");
+          return { ...r, limite_credito: alterado, limite_disponivel: Math.max(0, arredondar(alterado - r.saldo_devedor)), origem: "api" };
+        }
         return { ...r, origem: "api" };
       } catch (e) {
         if (!e.naoImplementado) throw e;
@@ -336,17 +344,25 @@
 
   // ------------------------------------------------------------------ limite
 
-  async function alterarLimite(cliente, valor) {
+  async function alterarLimite(cliente, valor, motivo) {
     valor = arredondar(valor);
+    const limiteAnterior = arredondar(cliente.limite_credito || 0);
     if (!(valor >= 0)) {
       throw new ApiError({ status: 422, codigo: "limite_invalido", mensagem: "O limite de crédito deve ser zero ou maior." });
     }
 
     const store = lerStore();
+    const registrar = () => {
+      // O contrato (rota 19) só recebe o novo valor; o motivo fica guardado neste navegador.
+      if (!motivo) return;
+      store.alteracoesLimite.unshift({ id_cliente: cliente.id, data: new Date().toISOString(), de: limiteAnterior, para: valor, motivo });
+      store.alteracoesLimite = store.alteracoesLimite.slice(0, 200);
+    };
 
     if (cliente.local) {
       const alvo = store.clientes.find((c) => c.id === cliente.id);
       if (alvo) alvo.limite_credito = valor;
+      registrar();
       salvarStore(store);
       return valor;
     }
@@ -362,8 +378,80 @@
       usoLocal.add("limite");
       store.limites[cliente.id] = valor;
     }
+    registrar();
     salvarStore(store);
     return valor;
+  }
+
+  function listarAlteracoesLimite(cliente) {
+    return lerStore().alteracoesLimite.filter((a) => String(a.id_cliente) === String(cliente.id));
+  }
+
+  // ---------------------------------------------------------- exceções (RF07)
+
+  const JANELA_EXCECOES_DIAS = 30;
+  const MOTIVOS_EXCECAO = { limite_credito_excedido: "Limite excedido", parcelas_em_atraso: "Parcela atrasada" };
+
+  function normalizarExcecao(e, vendaPorId) {
+    const venda = vendaPorId.get(e.id_venda) || {};
+    return {
+      id: e.id_excecao ?? `v${e.id_venda}`,
+      id_venda: e.id_venda,
+      id_cliente: e.id_cliente ?? venda.id_cliente ?? null,
+      nome: e.nome_cliente ?? venda.nome_cliente ?? "Cliente",
+      valor: Number(e.valor_total ?? venda.valor_total) || 0,
+      motivo: e.motivo ?? venda.motivo_rejeicao ?? null,
+      data: e.data_solicitacao ?? venda.data_venda ?? null,
+      origem: e.origem || "api",
+    };
+  }
+
+  // Solicitações pendentes. API: GET /excecoes?status=pendente. Enquanto a rota não existir,
+  // são as vendas rejeitadas dos últimos 30 dias (limite excedido ou parcela atrasada — crédito
+  // bloqueado não admite exceção) que ainda não tiveram decisão registrada neste navegador.
+  async function listarExcecoes() {
+    const vendas = await obterVendas();
+    const vendaPorId = new Map(vendas.map((v) => [v.id_venda, v]));
+
+    if (!indisponivel.excecoes) {
+      try {
+        const dados = await request("/excecoes?status=pendente");
+        return dados.map((e) => normalizarExcecao(e, vendaPorId));
+      } catch (e) {
+        if (!e.naoImplementado) throw e;
+        indisponivel.excecoes = true;
+      }
+    }
+
+    usoLocal.add("excecao");
+    const decididas = lerStore().excecoes;
+    const corte = new Date();
+    corte.setDate(corte.getDate() - JANELA_EXCECOES_DIAS);
+    const limite = corte.toISOString().slice(0, 10);
+
+    return vendas
+      .filter((v) => v.status === "rejeitada" && MOTIVOS_EXCECAO[v.motivo_rejeicao]
+        && String(v.data_venda || "").slice(0, 10) >= limite && !decididas[v.id_venda])
+      .sort((a, b) => b.id_venda - a.id_venda)
+      .map((v) => normalizarExcecao({ id_venda: v.id_venda, origem: "local" }, vendaPorId));
+  }
+
+  // decisao: "aprovar" | "negar". Retorna { decisao, local }.
+  async function decidirExcecao(excecao, decisao) {
+    if (excecao.origem !== "local") {
+      const resposta = await request(`/excecoes/${encodeURIComponent(excecao.id)}/${decisao}`, { method: "PUT" });
+      cacheVendas = null;
+      return { decisao, local: false, resposta };
+    }
+    usoLocal.add("excecao");
+    const store = lerStore();
+    store.excecoes[excecao.id_venda] = { decisao: decisao === "aprovar" ? "aprovada" : "negada", data: new Date().toISOString() };
+    salvarStore(store);
+    return { decisao, local: true };
+  }
+
+  function listarDecisoesExcecao() {
+    return Object.entries(lerStore().excecoes).map(([id_venda, d]) => ({ id_venda: Number(id_venda), ...d }));
   }
 
   // ---------------------------------------------------------------- cadastro
@@ -594,5 +682,6 @@
     listarClientes, obterCliente, obterResumo, obterResumos, obterHistorico, obterParcelasAbertas,
     registrarPagamento, alterarLimite, cadastrarCliente, avisoLocal,
     editarCliente, excluirCliente, registrarVenda, registrarBaixa, somarMeses,
+    listarAlteracoesLimite, listarExcecoes, decidirExcecao, listarDecisoesExcecao, MOTIVOS_EXCECAO,
   };
 })();

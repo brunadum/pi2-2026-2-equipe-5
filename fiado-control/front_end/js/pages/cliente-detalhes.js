@@ -43,6 +43,7 @@
   const state = { cliente: null, resumo: null, parcelas: [] };
   const params = new URLSearchParams(location.search);
   const id = params.get("id");
+  if (id) document.getElementById("btn-limite-aprovacao").href = `cliente-limite.html?id=${encodeURIComponent(id)}`;
   if (id) document.getElementById("btn-nova-venda").href = `nova-venda.html?cliente=${encodeURIComponent(id)}`;
 
   FC.ui.initSidebar();

@@ -184,3 +184,16 @@ As telas novas estão ligadas à navegação principal e mantêm os arquivos sep
 - **Exportação de pagamentos:** o frontend tenta `GET /api/pagamentos` quando o usuário solicita esse relatório. O contrato descrito acima documenta `POST /api/pagamentos`, mas não garante a listagem; por isso a exportação mostra um aviso se a rota `GET` não existir.
 
 Os nomes e chamadas usados no frontend estão comentados em `js/pages/relatorios-dashboard.js` e `js/pages/configuracoes.js` para facilitar a localização pela equipe de backend. Enquanto `GET/PUT /api/configuracoes/` não existirem, a tela de configurações usa valores demonstrativos e pode guardar as alterações em `localStorage`, identificando explicitamente que elas **não foram gravadas no banco**. Nenhum dos endpoints do backend é alterado por este pacote de frontend.
+
+
+## Controle de Limite / Aprovação
+
+| Tela | Página | Script | Estilo |
+| --- | --- | --- | --- |
+| Controle de Limite / Aprovação (dentro de Clientes) | `pages/cliente-limite.html` (aceita `?id=<id>`) | `js/pages/cliente-limite.js` | `css/pages/cliente-limite.css` |
+
+Acesso: ícone de medidor na linha do cliente em **Clientes** e botão **Limite e aprovações** em **Detalhes do cliente**.
+
+* **Alterar limite:** `PUT /clientes/{id}/limite` (rota 19 do contrato). O motivo da alteração e o histórico ficam só neste navegador, porque o contrato recebe apenas o valor.
+* **Solicitações de exceção:** `GET /excecoes?status=pendente` e `PUT /excecoes/{id}/aprovar|negar` (rotas 22 a 24). Enquanto essas rotas não existem no Django, a lista mostra as vendas rejeitadas nos últimos 30 dias por limite excedido ou parcela em atraso (crédito bloqueado não admite exceção) que ainda não tiveram decisão, e **Aprovar/Recusar fica registrado só neste navegador** (aviso amarelo na tela). A venda no banco continua rejeitada até o back-end implementar as rotas.
+* Enquanto `PUT /clientes/{id}/limite` não existe, o limite alterado aparece nas telas do front, mas o back-end continua usando o limite do banco para aprovar ou rejeitar vendas.

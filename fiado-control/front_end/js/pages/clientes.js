@@ -36,6 +36,7 @@
   }
 
   const ICONE_EDITAR = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17v3Z"/><path d="m14 7 3 3"/></svg>';
+  const ICONE_LIMITE = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 17a8 8 0 1 1 15 0"/><path d="m12 13 3.5-4"/><circle cx="12" cy="13.5" r="1"/></svg>';
   const ICONE_LIXEIRA = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>';
 
   function linha(c) {
@@ -50,6 +51,7 @@
       <td><span class="badge ${atraso ? "badge-late" : "badge-ok"}">${atraso ? "Em atraso" : "Em dia"}</span></td>
       <td class="cell-right"><div class="row-actions">
         <a class="link" href="cliente-detalhes.html?id=${encodeURIComponent(c.id)}" aria-label="Ver detalhes de ${escapeHtml(c.nome)}">Ver detalhes</a>
+        <a class="icon-btn" href="cliente-limite.html?id=${encodeURIComponent(c.id)}" title="Limite e aprovações" aria-label="Limite e aprovações de ${escapeHtml(c.nome)}">${ICONE_LIMITE}</a>
         <button class="icon-btn" type="button" data-acao="editar" title="Editar cliente" aria-label="Editar ${escapeHtml(c.nome)}">${ICONE_EDITAR}</button>
         <button class="icon-btn danger" type="button" data-acao="excluir" title="Excluir cliente" aria-label="Excluir ${escapeHtml(c.nome)}">${ICONE_LIXEIRA}</button>
       </div></td>
