@@ -1,4 +1,5 @@
 import json
+import tempfile
 from datetime import date, timedelta
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
@@ -8,9 +9,9 @@ from time import sleep
 from django.db import connection, connections, transaction
 from django.test import Client, TransactionTestCase
 
-SCHEMA_PATH = Path(__file__).resolve().parent.parent.parent.parent / "init-scripts" / "01-schema.sql"
-SEED_PATH = Path(__file__).resolve().parent.parent.parent.parent / "init-scripts" / "02-seed.sql"
-
+TEMP_DIR = Path(tempfile.gettempdir()) / "init-scripts"
+TEMP_DIR.mkdir(parents=True, exist_ok=True)
+SCHEMA_PATH = TEMP_DIR / "01-schema.sql"
 
 class RotasBase(TransactionTestCase):
     @classmethod
@@ -24,20 +25,162 @@ class RotasBase(TransactionTestCase):
 
     @classmethod
     def _reset_banco(cls):
+        schema_sql = """
+        CREATE TABLE usuario (
+            id_usuario SERIAL PRIMARY KEY,
+            nome VARCHAR(100) NOT NULL,
+            email VARCHAR(100) UNIQUE NOT NULL,
+            senha_hash VARCHAR(255) NOT NULL,
+            perfil VARCHAR(20) NOT NULL CHECK (perfil IN ('gerente', 'funcionario')),
+            ativo BOOLEAN DEFAULT TRUE
+        );
+
+        CREATE TABLE cliente (
+            id_cliente SERIAL PRIMARY KEY,
+            nome VARCHAR(100) NOT NULL,
+            cpf VARCHAR(14) UNIQUE NOT NULL,
+            limite_credito DECIMAL(10,2) DEFAULT 0.00,
+            credito_bloqueado BOOLEAN NOT NULL DEFAULT FALSE,
+            ativo BOOLEAN DEFAULT TRUE
+        );
+
+        CREATE TABLE cliente_telefone (
+            id_telefone SERIAL PRIMARY KEY,
+            id_cliente INT NOT NULL,
+            numero VARCHAR(20) NOT NULL,
+            FOREIGN KEY (id_cliente) REFERENCES cliente(id_cliente) ON DELETE CASCADE
+        );
+
+        CREATE TABLE venda (
+            id_venda SERIAL PRIMARY KEY,
+            id_cliente INT NOT NULL,
+            id_usuario INT NOT NULL,
+            data_venda TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            valor_total DECIMAL(10,2) NOT NULL,
+            modalidade VARCHAR(20) NOT NULL CHECK (modalidade IN ('fiado', 'a_prazo')),
+            status VARCHAR(20) DEFAULT 'aprovada' CHECK (status IN ('aprovada', 'rejeitada', 'pendente_autorizacao')),
+            motivo_rejeicao VARCHAR(100),
+            autorizado_por INT,
+            FOREIGN KEY (id_cliente) REFERENCES cliente(id_cliente),
+            FOREIGN KEY (id_usuario) REFERENCES usuario(id_usuario),
+            FOREIGN KEY (autorizado_por) REFERENCES usuario(id_usuario)
+        );
+
+        CREATE TABLE pagamento (
+            id_pagamento SERIAL PRIMARY KEY,
+            id_venda INT NOT NULL,
+            valor_parcela DECIMAL(10,2) NOT NULL,
+            data_vencimento DATE NOT NULL,
+            data_pagamento DATE,
+            status VARCHAR(20) NOT NULL CHECK (status IN ('pendente', 'pago', 'atrasado')),
+            FOREIGN KEY (id_venda) REFERENCES venda(id_venda) ON DELETE CASCADE
+        );
+
+        CREATE TABLE configuracao (
+            id_configuracao SERIAL PRIMARY KEY,
+            taxa_juros DECIMAL(5,2) NOT NULL,
+            taxa_multa DECIMAL(5,2) NOT NULL,
+            definido_por INT NOT NULL,
+            FOREIGN KEY (definido_por) REFERENCES usuario(id_usuario)
+        );
+
+        CREATE TABLE recebimento (
+            id_recebimento SERIAL PRIMARY KEY,
+            id_pagamento INT NOT NULL,
+            valor_recebido DECIMAL(10,2) NOT NULL,
+            valor_juros DECIMAL(10,2) NOT NULL DEFAULT 0,
+            valor_multa DECIMAL(10,2) NOT NULL DEFAULT 0,
+            data_pagamento DATE NOT NULL DEFAULT CURRENT_DATE,
+            id_usuario INT,
+            FOREIGN KEY (id_pagamento) REFERENCES pagamento(id_pagamento) ON DELETE CASCADE,
+            FOREIGN KEY (id_usuario) REFERENCES usuario(id_usuario)
+        );
+
+        CREATE INDEX recebimento_parcela_idx ON recebimento (id_pagamento);
+        CREATE INDEX venda_cliente_idx ON venda (id_cliente);
+        CREATE INDEX pagamento_venda_idx ON pagamento (id_venda);
+        """
+
+        # 2. O Seed dentro da sua própria variável com aspas triplas
+        seed_sql = """
+        INSERT INTO usuario (nome, email, senha_hash, perfil) VALUES 
+        ('Carlos Funcionario', 'funcionario@loja.com', 'hash123', 'funcionario'),
+        ('Maria Gerente', 'gerente@loja.com', 'hash123', 'gerente'),
+        ('Ana Vendedora', 'ana@loja.com', 'hash123', 'funcionario');
+
+        INSERT INTO cliente (nome, cpf, limite_credito) VALUES 
+        ('João Silva', '111.111.111-11', 1500.00),          
+        ('Maria Souza', '12345678900', 500.00),             -- Cliente base da documentação da API
+        ('João Lima', '333.333.333-33', 800.00),            -- Cliente para teste de atraso no dashboard
+        ('Cliente Sem Limite', '222.222.222-22', 0.00),     -- Para testar venda rejeitada
+        ('Pedro Alves', '444.444.444-44', 1000.00),
+        ('Lucas Mendes', '555.555.555-55', 1200.00),
+        ('Fernanda Costa', '666.666.666-66', 300.00),
+        ('Camila Rocha', '777.777.777-77', 2000.00),
+        ('Bruno Santos', '888.888.888-88', 600.00),
+        ('Amanda Ribeiro', '999.999.999-99', 400.00);
+
+        INSERT INTO cliente_telefone (id_cliente, numero) VALUES 
+        (1, '88999991111'),
+        (2, '88999990000'),
+        (2, '8833330000'), 
+        (3, '88999993333'),
+        (4, '88999994444'),
+        (5, '88999995555'),
+        (6, '88999996666'),
+        (7, '88999997777'),
+        (8, '88999998888'),
+        (9, '88999999999'),
+        (10, '88999990001');
+
+        INSERT INTO venda (id_cliente, id_usuario, valor_total, modalidade, status, motivo_rejeicao, autorizado_por) VALUES 
+        (1, 1, 500.00, 'a_prazo', 'aprovada', NULL, NULL),                 -- Venda 1: Gera a parcela do CT-002
+        (2, 1, 300.00, 'a_prazo', 'aprovada', NULL, NULL),                 -- Venda 2: Maria Souza (API)
+        (3, 1, 120.00, 'fiado', 'aprovada', NULL, NULL),                   -- Venda 3: João Lima (API atrasados)
+        (4, 1, 300.00, 'fiado', 'rejeitada', 'limite_credito_excedido', NULL), -- Venda 4: Rejeitada automática
+        (5, 3, 150.00, 'fiado', 'aprovada', NULL, NULL),                   -- Venda 5: Venda normal
+        (6, 3, 800.00, 'a_prazo', 'aprovada', NULL, NULL),                 -- Venda 6: Venda normal
+        (7, 1, 400.00, 'fiado', 'rejeitada', 'limite_credito_excedido', NULL), -- Venda 7: Rejeitada que ficará assim
+        (7, 1, 400.00, 'fiado', 'aprovada', NULL, 2),                      -- Venda 8: Exceção aprovada pelo Gerente (id 2)
+        (8, 1, 1000.00, 'a_prazo', 'aprovada', NULL, NULL),                -- Venda 9: Venda normal
+        (9, 3, 50.00, 'fiado', 'aprovada', NULL, NULL);                    -- Venda 10: Venda normal
+
+        INSERT INTO pagamento (id_venda, valor_parcela, data_vencimento, data_pagamento, status) VALUES 
+        (1, 500.00, '2026-10-10', NULL, 'pendente'),             
+        (2, 150.00, '2026-10-05', NULL, 'pendente'),             
+        (2, 150.00, '2026-11-05', NULL, 'pendente'),             
+        (3, 120.00, '2026-09-10', NULL, 'atrasado'),             
+        (5, 150.00, '2026-09-20', '2026-09-20', 'pago'),         
+        (6, 400.00, '2026-10-15', NULL, 'pendente'),             
+        (6, 400.00, '2026-11-15', NULL, 'pendente'),             
+        (8, 400.00, '2026-10-01', NULL, 'pendente'),             
+        (9, 500.00, '2026-08-01', '2026-08-01', 'pago'),         
+        (9, 500.00, '2026-09-01', NULL, 'atrasado'),             
+        (10, 50.00, '2026-09-25', NULL, 'pendente');
+
+        INSERT INTO configuracao (taxa_juros, taxa_multa, definido_por) VALUES 
+        (0.02, 0.05, 2);
+        """
+
+        SCHEMA_PATH.write_text(schema_sql, encoding="utf-8")
+
         with connection.cursor() as cursor:
+            cursor.execute("DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;")
+            
+            if schema_sql.strip() and not schema_sql.strip().startswith("-- COLE"):
+                cursor.execute(schema_sql)
+            if seed_sql.strip() and not seed_sql.strip().startswith("-- COLE"):
+                cursor.execute(seed_sql)
+
             cursor.execute("""
-                DROP TABLE IF EXISTS recebimento CASCADE;
-                DROP TABLE IF EXISTS configuracao CASCADE;
-                DROP TABLE IF EXISTS pagamento CASCADE;
-                DROP TABLE IF EXISTS venda CASCADE;
-                DROP TABLE IF EXISTS cliente_telefone CASCADE;
-                DROP TABLE IF EXISTS cliente CASCADE;
-                DROP TABLE IF EXISTS usuario CASCADE;
+                SELECT setval('usuario_id_usuario_seq', COALESCE((SELECT MAX(id_usuario) FROM usuario), 1));
+                SELECT setval('cliente_id_cliente_seq', COALESCE((SELECT MAX(id_cliente) FROM cliente), 1));
+                SELECT setval('cliente_telefone_id_telefone_seq', COALESCE((SELECT MAX(id_telefone) FROM cliente_telefone), 1));
+                SELECT setval('venda_id_venda_seq', COALESCE((SELECT MAX(id_venda) FROM venda), 1));
+                SELECT setval('pagamento_id_pagamento_seq', COALESCE((SELECT MAX(id_pagamento) FROM pagamento), 1));
+                SELECT setval('recebimento_id_recebimento_seq', COALESCE((SELECT MAX(id_recebimento) FROM recebimento), 1));
+                SELECT setval('configuracao_id_configuracao_seq', COALESCE((SELECT MAX(id_configuracao) FROM configuracao), 1));
             """)
-            if SCHEMA_PATH.exists():
-                cursor.execute(SCHEMA_PATH.read_text(encoding="utf-8"))
-            if SEED_PATH.exists():
-                cursor.execute(SEED_PATH.read_text(encoding="utf-8"))
 
     def post(self, url, corpo):
         return self.client.post(url, json.dumps(corpo), content_type="application/json")
@@ -110,7 +253,6 @@ class ClientesTests(RotasBase):
 
 class SchemaIssue46Tests(RotasBase):
     def test_schema_novo_contem_campos_e_indices_sem_comando_adicional(self):
-        # Executa apenas o schema oficial num namespace vazio do banco de testes.
         with transaction.atomic():
             with connection.cursor() as cursor:
                 cursor.execute('CREATE SCHEMA validacao_schema_issue46')
@@ -292,13 +434,11 @@ class VendasTests(RotasBase):
 class PagamentosTests(RotasBase):
     def setUp(self):
         super().setUp()
-        # Estes testes tratam de principal sem encargos, independentemente do dia.
         with connection.cursor() as cursor:
             cursor.execute("UPDATE pagamento SET data_vencimento = %s WHERE id_pagamento = 1",
                            [date.today() + timedelta(days=30)])
 
     def test_baixa_total(self):
-        # Parcela 1 (João Silva, 500.00 pendente)
         r = self.post("/api/pagamentos", {"id_parcela": 1, "valor_recebido": 500.00})
         self.assertEqual(r.status_code, 201)
         p = r.json()
@@ -310,7 +450,6 @@ class PagamentosTests(RotasBase):
         self.assertEqual(p["saldo_devedor_cliente"], 0.0)
 
     def test_baixa_parcial(self):
-        # Parcela 1 (João Silva, 500.00 pendente)
         p = self.post("/api/pagamentos", {"id_parcela": 1, "valor_recebido": 200.00}).json()
         self.assertEqual(p["status_parcela"], "parcial")
         self.assertEqual(p["saldo_parcela"], 300.00)
@@ -325,7 +464,6 @@ class PagamentosTests(RotasBase):
         self.assertErro(r, 404, "parcela_nao_encontrada")
 
     def test_parcela_ja_paga(self):
-        # Parcela 5 já está paga no seed
         r = self.post("/api/pagamentos", {"id_parcela": 5, "valor_recebido": 50})
         self.assertErro(r, 422, "parcela_ja_paga")
 
@@ -569,7 +707,6 @@ class Issue46RegressaoTests(RotasBase):
 
 
 class RegrasNegocioTests(RotasBase):
-    """Critérios RN01–RN03 da issue #47 sobre transações reais PostgreSQL."""
 
     def venda(self, valor=100, **extra):
         dados = {'id_cliente': 5, 'modalidade': 'a_prazo', 'valor_total': valor,
