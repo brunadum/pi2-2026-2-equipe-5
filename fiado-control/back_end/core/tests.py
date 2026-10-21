@@ -101,7 +101,6 @@ class RotasBase(TransactionTestCase):
         CREATE INDEX pagamento_venda_idx ON pagamento (id_venda);
         """
 
-        # 2. O Seed dentro da sua própria variável com aspas triplas
         seed_sql = """
         INSERT INTO usuario (nome, email, senha_hash, perfil) VALUES 
         ('Carlos Funcionario', 'funcionario@loja.com', 'hash123', 'funcionario'),
