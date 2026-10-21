@@ -68,7 +68,7 @@ CREATE INDEX IF NOT EXISTS recebimento_pagamento_idx ON recebimento (id_pagament
 
 ---
 
-## 🚀 Como Executar os Testes Automatizados
+##  Como Executar os Testes Automatizados
 
 A suíte de testes integrados roda em um ambiente conteinerizado via Docker, garantindo o isolamento da base de dados de teste.
 
