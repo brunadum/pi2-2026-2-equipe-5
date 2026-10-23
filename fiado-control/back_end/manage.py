@@ -3,6 +3,14 @@
 import os
 import sys
 
+# Sanitiza as variáveis de ambiente do Windows para evitar UnicodeDecodeError (como o byte 0xe7 / ç)
+for key, value in list(os.environ.items()):
+    try:
+        if isinstance(value, str):
+            os.environ[key] = value.encode('latin1', errors='ignore').decode('utf-8', errors='ignore')
+    except Exception:
+        pass
+
 
 def main():
     """Run administrative tasks."""
