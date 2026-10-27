@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fiado Control — API</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.30.2/swagger-ui.css">
+</head>
+<body>
+  <noscript>A documentação interativa exige JavaScript. <a href="{% url 'api-openapi' %}">Baixar OpenAPI JSON</a>.</noscript>
+  <div id="swagger-ui"></div>
+  <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.30.2/swagger-ui-bundle.js"></script>
+  <script>
+    window.ui = SwaggerUIBundle({
+      url: "{% url 'api-openapi' %}",
+      dom_id: '#swagger-ui',
+      deepLinking: true,
+      persistAuthorization: false,
+      validatorUrl: null,
+      supportedSubmitMethods: ['get', 'post', 'put'],
+      presets: [SwaggerUIBundle.presets.apis]
+    });
+  </script>
+</body>
+</html>

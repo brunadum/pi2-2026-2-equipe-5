@@ -1,9 +1,17 @@
 from django.urls import path
 
 from . import views
+from . import credito
+from . import documentacao
 from .login import login
 
 urlpatterns = [
+    path("openapi.json", documentacao.openapi, name="api-openapi"),
+    path("docs/", documentacao.swagger, name="api-docs"),
+    path("clientes/<str:id_cliente>/credito/bloqueio", credito.bloqueio),
+    path("clientes/<str:id_cliente>/credito/bloqueio/", credito.bloqueio),
+    path("clientes/<str:id_cliente>/limite", credito.limite),
+    path("clientes/<str:id_cliente>/limite/", credito.limite),
     path("login/",login),
     path("clientes", views.clientes),
     path("clientes/", views.clientes),

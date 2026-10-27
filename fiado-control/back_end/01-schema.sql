@@ -76,3 +76,14 @@ CREATE INDEX IF NOT EXISTS venda_modalidade_idx ON venda (modalidade);
 CREATE INDEX IF NOT EXISTS venda_data_venda_idx ON venda (data_venda);
 CREATE INDEX IF NOT EXISTS pagamento_venda_idx ON pagamento (id_venda);
 CREATE INDEX IF NOT EXISTS recebimento_pagamento_idx ON recebimento (id_pagamento);
+
+CREATE TABLE IF NOT EXISTS auditoria_credito (
+    id_auditoria BIGSERIAL PRIMARY KEY,
+    id_cliente INTEGER NOT NULL REFERENCES cliente(id_cliente),
+    id_usuario INTEGER NOT NULL REFERENCES usuario(id_usuario),
+    data_hora TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    operacao VARCHAR(30) NOT NULL CHECK (operacao IN ('alteracao_limite', 'bloqueio_credito')),
+    valores_anteriores JSONB NOT NULL,
+    valores_novos JSONB NOT NULL,
+    motivo VARCHAR(200) NOT NULL DEFAULT ''
+);
