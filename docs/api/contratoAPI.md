@@ -9,6 +9,29 @@ Nomes de campo conferem com o MER (`USUÁRIO`, `CLIENTE`, `VENDA`, `PAGAMENTO`,
 
 ## Convenções
 
+### Estado de implementação — Sprint 4 / Backend 2
+
+O índice abaixo representa o escopo previsto, não uma lista de rotas já prontas.
+As operações disponíveis e seus payloads verificáveis estão no OpenAPI em
+`GET /api/openapi.json`, navegável em `GET /api/docs/`.
+
+| Estado | Operações |
+|---|---|
+| Existentes, aguardam proteção global de Backend 1/3 (#60) | `GET/POST /clientes`, `GET /clientes/{id}`, `GET /clientes/{id}/saldo`, `GET /clientes/{id}/parcelas`, `GET/POST /vendas`, `POST /pagamentos`, `GET /dashboard` |
+| RF06 implementado, exige integração da identidade | `GET/PUT /clientes/{id}/limite`, `PUT /clientes/{id}/credito/bloqueio` |
+| Login legado existente | `POST /login/` recebe `email` e `senha`, retorna dados de usuário; ainda não emite token nem cria sessão autenticada |
+| Planejadas | As demais operações do índice, incluindo `/auth/login` e `/auth/logout` |
+
+Nas novas rotas RF06, a camada de autenticação de Backend 1/3 deve validar o
+token e definir `request.usuario` como uma instância de `core.models.Usuario`.
+As views recarregam o usuário no banco e verificam situação ativa e perfil.
+Sem essa identidade interna retornam **401**, inclusive quando um header
+Bearer arbitrário é enviado. Nenhum ID ou perfil do corpo autentica o autor.
+A consulta permite ambos os perfis; as duas escritas exigem gerente.
+O login legado, sozinho, ainda não permite usar RF06 pelo frontend.
+
+Critérios e testes por issue: [testes-sprint4-backend2.md](testes-sprint4-backend2.md).
+
 - **Base**: `/api`. Os caminhos do REQ aparecem aqui sem o prefixo.
 - **Datas**: `YYYY-MM-DD` (ISO 8601). **Valores**: número decimal, 2 casas.
 - **Validações**: códigos e formatos das rotas implementadas em
@@ -405,29 +428,53 @@ liberar as telas (UC01).
   "credito_bloqueado": false
 }
 ```
-- **Erro** (404): `cliente_nao_encontrado`
+- **Erros**: 400 `campo_invalido` (identificador); 401 `nao_autenticado`;
+  403 `acesso_negado` (perfil desconhecido); 404 `cliente_nao_encontrado`;
+  405 `metodo_nao_permitido`.
+- Disponível = `max(0, limite_credito - saldo_devedor)`, incluindo os encargos
+  calculados pelas parcelas. Crédito bloqueado continua expondo o disponível
+  financeiro; o bloqueio é uma condição independente que impede a venda.
 
 ### 19. Definir ou alterar limite — `PUT /clientes/{id}/limite`
 
 - **Requisito**: RF06 · **Regras**: RN01, RN04
 - **Entrada**:
 ```json
-{ "limite_credito": 600.00 }
+{ "limite_credito": 600.00, "motivo": "Revisão de crédito" }
 ```
 - **Saída** (200): mesmo formato da rota 18. A alteração gera registro de
-  auditoria com o valor anterior e o novo.
-- **Erros**: 403 `acesso_negado`; 404 `cliente_nao_encontrado`; 422 `limite_invalido`
+  auditoria com o valor anterior e o novo, ator autenticado, cliente e data/hora.
+- Limite deve ser número JSON finito, **zero ou maior**, até 99999999.99 e
+  com até dois decimais. Textos, booleanos e frações de centavo são inválidos.
+  Reduzir abaixo da dívida é permitido: preserva dívida e zera o disponível.
+- `motivo` é opcional, texto com até 200 caracteres após remover espaços
+  externos; quando informado é persistido. A omissão mantém compatibilidade
+  com a tela atual, que envia apenas `limite_credito`.
+- **Erros**: 400 `json_invalido`, `campo_obrigatorio`, `campo_invalido`;
+  401 `nao_autenticado`; 403 `acesso_negado`; 404 `cliente_nao_encontrado`;
+  405 `metodo_nao_permitido`; 422 `limite_invalido`.
+- Atualização e auditoria ocorrem na mesma transação, com bloqueio do cliente
+  compartilhado com venda e pagamento. Falha de auditoria desfaz a alteração.
+  Repetir o mesmo limite não cria evento adicional.
 
 ### 20. Bloquear ou desbloquear crédito — `PUT /clientes/{id}/credito/bloqueio`
 
 - **Requisito**: RF06 · **Regras**: RN01, RN04
 - **Entrada**:
 ```json
-{ "bloqueado": true }
+{ "bloqueado": true, "motivo": "Crédito suspenso para revisão" }
 ```
 - **Saída** (200): `{ "id_cliente": 1, "credito_bloqueado": true }`. Com o
   bloqueio ativo, `POST /vendas` rejeita com `credito_bloqueado`.
-- **Erros**: 403 `acesso_negado`; 404 `cliente_nao_encontrado`
+- `bloqueado` aceita somente booleano JSON; `1`, `0` e textos são inválidos.
+  `motivo` é opcional e segue a validação da alteração de limite.
+- Bloquear/desbloquear é auditado atomicamente, com estados anterior/novo,
+  ator e data/hora. Repetir o estado não cria novo evento.
+- Não altera dívida nem impede baixas existentes. Desbloquear apenas remove
+  esse impedimento: as regras de atraso e limite continuam valendo.
+- **Erros**: 400 `json_invalido`, `campo_obrigatorio`, `campo_invalido`;
+  401 `nao_autenticado`; 403 `acesso_negado`; 404 `cliente_nao_encontrado`;
+  405 `metodo_nao_permitido`.
 
 ---
 
