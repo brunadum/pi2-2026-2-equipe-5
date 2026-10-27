@@ -43,6 +43,20 @@
 
 ## Critérios de aceitação
 
+### Complemento Sprint 4 — RF06
+
+Gestão de crédito dá suporte à validação de crédito do UC03:
+
+| Método | Rota | Perfil | Regra |
+|---|---|---|---|
+| GET | `/api/clientes/{id}/limite` | Gerente e Funcionário | RN01: saldo e disponibilidade |
+| PUT | `/api/clientes/{id}/limite` | Gerente | RN01, RN04, RN05: alterar limite com auditoria |
+| PUT | `/api/clientes/{id}/credito/bloqueio` | Gerente | RN01, RN04, RN05: bloquear/desbloquear com auditoria |
+
+Identidade autenticada depende de Backend 1/3; enquanto não integrada, essas
+rotas retornam 401. Critérios, testes e limitações em
+[testes-sprint4-backend2.md](testes-sprint4-backend2.md).
+
 - [x] Todos os casos de uso (UC01–UC05) têm ao menos uma rota mapeada
 - [x] Cada rota indica o método HTTP correto (GET/POST/PATCH/PUT)
 - [x] Arquivo `docs/api/mapeamento-casos-de-uso-rotas.md` commitado

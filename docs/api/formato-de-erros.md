@@ -37,6 +37,9 @@ texto vazio, somente espaços e lista vazia são considerados ausentes:
 | `vencimento_invalido` | 422 | Primeiro vencimento anterior à data de hoje |
 | `valor_excede_devido` | 422 | Pagamento maior que o valor atualizado em aberto da parcela |
 | `parcela_ja_paga` | 422 | Parcela já quitada |
+| `nao_autenticado` | 401 | RF06: identidade validada ausente ou usuário inativo; inclui `WWW-Authenticate: Bearer` |
+| `acesso_negado` | 403 | RF06: funcionário tentando alterar crédito ou perfil desconhecido |
+| `limite_invalido` | 422 | Limite não numérico, booleano, não finito, negativo, maior que 99999999.99 ou com fração de centavo |
 
 **Mudança da #48:** CPF duplicado retorna **409 `cpf_duplicado`**. O antigo
 422 `cpf_invalido` para duplicidade não deve mais ser usado pelo consumidor.
@@ -54,6 +57,9 @@ texto vazio, somente espaços e lista vazia são considerados ausentes:
 | `POST /vendas` | `json_invalido`, `campo_obrigatorio`, `campo_invalido`, `cliente_nao_encontrado`, `vencimento_invalido`; decisões de negócio abaixo |
 | `POST /pagamentos` | `json_invalido`, `campo_obrigatorio`, `campo_invalido`, `parcela_nao_encontrada`, `valor_excede_devido`, `parcela_ja_paga` |
 | `GET /dashboard` | `periodo_invalido`, `campo_invalido` |
+| `GET /clientes/{id}/limite` | `campo_invalido`, `nao_autenticado`, `acesso_negado`, `cliente_nao_encontrado` |
+| `PUT /clientes/{id}/limite` | `json_invalido`, `campo_obrigatorio`, `campo_invalido`, `nao_autenticado`, `acesso_negado`, `cliente_nao_encontrado`, `limite_invalido` |
+| `PUT /clientes/{id}/credito/bloqueio` | `json_invalido`, `campo_obrigatorio`, `campo_invalido`, `nao_autenticado`, `acesso_negado`, `cliente_nao_encontrado` |
 
 Todas essas rotas também retornam `405 metodo_nao_permitido` para métodos não
 suportados. Identificadores nas URLs e corpos devem ser inteiros positivos até
@@ -79,6 +85,14 @@ frações, zero, negativos e valores fora desse intervalo são rejeitados.
 - **Valores:** número JSON positivo, finito, até duas casas decimais e até
   99999999.99. Rejeita textos, booleanos, zero, negativos e frações de centavo,
   sem arredondamento silencioso na entrada.
+- **Limite de crédito (RF06):** segue a precisão e máximo acima, mas aceita
+  zero. Limite inválido retorna 422 `limite_invalido`; campo ausente, `null`
+  ou texto em branco retorna 400 `campo_obrigatorio`.
+- **Bloqueio de crédito (RF06):** `bloqueado` deve ser booleano JSON.
+  Campo ausente ou `null` retorna 400 `campo_obrigatorio`; tipo incorreto,
+  400 `campo_invalido`. `false` é um valor válido.
+- **Motivo de crédito:** opcional, texto de até 200 caracteres após retirar
+  espaços externos; tipo incorreto ou excesso retorna 400 `campo_invalido`.
 - **Parcelas:** em `a_prazo`, quantidade obrigatória e inteira positiva; cada
   parcela precisa ter pelo menos um centavo. Em `fiado`, quantidade omitida
   vale 1; informada, precisa ser o inteiro 1. Os vencimentos mensais precisam
