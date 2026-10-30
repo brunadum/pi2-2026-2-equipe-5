@@ -594,7 +594,25 @@ DIAS_PADRAO_VENCIMENTO = 7
 @csrf_exempt
 def dashboard(request):
     if request.method != "GET":
-        return _erro("metodo_nao_permitido", "Método não permitido nesta rota", 405)
+        return _erro("metodo_nao_permitido", 
+                     "Método não permitido nesta rota", 
+                     405
+                     )
+    
+    from .credito import _acesso
+    usuario_id, erro=_acesso(request)
+
+    if erro is not None:
+        return erro
+    if request.usuario.perfil != "gerente":
+        return  _erro(
+            "Acesso negando",
+            "Apenas o gerente pode acessar",
+            403
+        )
+
+
+    
 
     periodo = request.GET.get("periodo", "mes").strip()
     if periodo not in ("dia", "semana", "mes"):

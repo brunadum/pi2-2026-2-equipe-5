@@ -6,8 +6,10 @@ from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
 from time import sleep
 
+
 from django.db import connection, connections, transaction
-from django.test import Client, TransactionTestCase
+from django.conf import settings
+from django.test import Client, TransactionTestCase, override_settings
 
 TEMP_DIR = Path(tempfile.gettempdir()) / "init-scripts"
 TEMP_DIR.mkdir(parents=True, exist_ok=True)
@@ -474,6 +476,13 @@ class PagamentosTests(RotasBase):
     def test_metodo_nao_permitido(self):
         self.assertErro(self.client.delete("/api/pagamentos"), 405, "metodo_nao_permitido")
 
+@override_settings(
+    MIDDLEWARE=[
+        *settings.MIDDLEWARE,
+        "core.test_credito.IdentidadeTesteMiddleware",
+    ],
+    CREDITO_TESTE_USUARIO=2
+)
 
 class DashboardTests(RotasBase):
     def test_padrao_e_periodos(self):
@@ -534,6 +543,14 @@ class Issue46RegressaoTests(RotasBase):
         self.assertEqual(parcela['valor_atualizado'], 7)
         self.assertEqual(self.client.get('/api/clientes/1/saldo').json()['saldo_devedor'], 7)
         self.assertEqual(self.post('/api/pagamentos', {'id_parcela': 1, 'valor_recebido': 7}).json()['status_parcela'], 'pago')
+
+    @override_settings(
+        MIDDLEWARE=[
+            *settings.MIDDLEWARE,
+            "core.test_credito.IdentidadeTesteMiddleware",
+        ],
+        CREDITO_TESTE_USUARIO=2
+    )
 
     def test_saldo_e_dashboard_incluem_mesmos_encargos(self):
         antes = self.client.get('/api/dashboard').json()['total_a_receber']
@@ -680,6 +697,15 @@ class Issue46RegressaoTests(RotasBase):
         dados = {'nome': 'Concorrente', 'cpf': '529.982.247-25', 'telefone': ['88999999999']}
         self.assertEqual(self._simultaneos('/api/clientes', dados, 'INSERT INTO cliente '), [201, 409])
 
+
+    @override_settings(
+        MIDDLEWARE=[
+            *settings.MIDDLEWARE,
+            "core.test_credito.IdentidadeTesteMiddleware",
+        ],
+        CREDITO_TESTE_USUARIO=2
+    )
+    
     def test_requisicoes_nao_criam_tabelas(self):
         def sem_ddl(execute, sql, params, many, context):
             self.assertFalse(sql.lstrip().upper().startswith(('CREATE ', 'ALTER ', 'DROP ')))
@@ -966,6 +992,16 @@ class ValidacoesEntradasTests(RotasBase):
         self.assertGreater(len(r.json()), 0)
         self.assertTrue(all(v['status'] == 'rejeitada' and v['modalidade'] == 'fiado' for v in r.json()))
 
+
+
+    @override_settings(
+        MIDDLEWARE=[
+            *settings.MIDDLEWARE,
+            "core.test_credito.IdentidadeTesteMiddleware",
+        ],
+        CREDITO_TESTE_USUARIO=2
+    )
+   
     def test_dashboard_rejeita_periodo_e_janela_invalidos(self):
         self.assertErro(self.client.get('/api/dashboard?periodo=ano'), 400, 'periodo_invalido')
         for dias in ('0', '-1', '1.5', 'abc', '99999999999999999999'):
