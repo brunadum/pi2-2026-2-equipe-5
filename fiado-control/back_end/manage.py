@@ -3,7 +3,6 @@
 import os
 import sys
 
-# Sanitiza as variáveis de ambiente do Windows para evitar UnicodeDecodeError (como o byte 0xe7 / ç)
 for key, value in list(os.environ.items()):
     try:
         if isinstance(value, str):

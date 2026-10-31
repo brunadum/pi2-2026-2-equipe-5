@@ -1,9 +1,15 @@
+CREATE TABLE IF NOT EXISTS perfil (
+    id SERIAL PRIMARY KEY,
+    nome VARCHAR(50) UNIQUE NOT NULL, 
+    descricao VARCHAR(255)
+);
+
 CREATE TABLE IF NOT EXISTS usuario (
     id_usuario SERIAL PRIMARY KEY,
     nome VARCHAR(100) NOT NULL,
     email VARCHAR(100) UNIQUE NOT NULL,
     senha_hash VARCHAR(255) NOT NULL,
-    perfil VARCHAR(20) NOT NULL CHECK (perfil IN ('gerente', 'funcionario')),
+    id_perfil INT REFERENCES perfil(id) ON DELETE RESTRICT,
     ativo BOOLEAN DEFAULT TRUE
 );
 
@@ -87,3 +93,13 @@ CREATE TABLE IF NOT EXISTS auditoria_credito (
     valores_novos JSONB NOT NULL,
     motivo VARCHAR(200) NOT NULL DEFAULT ''
 );
+
+CREATE TABLE produto (
+    id SERIAL PRIMARY KEY,
+    nome VARCHAR(150) NOT NULL,
+    preco_venda DECIMAL(10,2) NOT NULL,
+    quantidade_estoque INTEGER DEFAULT 0,
+    ativo BOOLEAN DEFAULT TRUE
+);
+
+CREATE INDEX produto_nome_idx ON produto (nome);
