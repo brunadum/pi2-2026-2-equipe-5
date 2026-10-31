@@ -70,3 +70,116 @@ async function carregarVendas(){
 }
 
 carregarVendas()
+
+// Formatar valores em reais
+function formatarMoeda(valor) {
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL"
+  }).format(Number(valor));
+}
+
+// Formatar data no padrão brasileiro
+function formatarData(data) {
+  const [ano, mes, dia] = data.split("-");
+  return `${dia}/${mes}/${ano}`;
+}
+
+async function carregarDashboard() {
+    const indicadores = [
+    "total-a-receber",
+    "total-em-atraso",
+    "vendas-mes",
+    "clientes-inadimplentes"
+  ]
+
+  const tabela=document.getElementById("installment-rows")
+
+  try {
+    const resposta = await fetch(
+  "http://localhost:8001/api/dashboard?periodo=mes",
+  {
+    method: "GET",
+    headers: {
+      "Accept": "application/json"
+    }
+  }
+)
+
+    if(resposta.status===401){
+       throw new Error("Autenticação necessária para acessar o dashboard.")
+    }
+    if(resposta.status===403){
+        throw new Error("Apenas o gerente pode acessar o dashboard.")
+    }
+    if(!resposta.ok){
+        throw new Error("Erro ao consultar os dados do dashboard.")
+    }
+
+    const dados=await resposta.json()
+
+    // Total a receber
+    document.getElementById("total-a-receber").textContent =
+      formatarMoeda(dados.total_a_receber);
+
+    // Total em atraso
+    const totalEmAtraso = dados.parcelas_vencidas.reduce(
+      (soma, parcela) => soma + Number(parcela.valor_parcela),
+      0
+    );
+
+    document.getElementById("total-em-atraso").textContent =
+      formatarMoeda(totalEmAtraso);
+
+    // Vendas aprovadas no mês
+    document.getElementById("vendas-mes").textContent =
+      formatarMoeda(dados.faturamento_total);
+
+    // Contar clientes inadimplentes sem repetição
+    const clientesInadimplentes = new Set(
+      dados.parcelas_vencidas.map(parcela => parcela.id_cliente)
+    );
+
+    document.getElementById("clientes-inadimplentes").textContent =
+      clientesInadimplentes.size;
+
+       // Atualizar tabela de próximas parcelas
+    tabela.replaceChildren();
+
+    if (dados.parcelas_a_vencer.length === 0) {
+      const linha = tabela.insertRow();
+      const celula = linha.insertCell();
+      celula.colSpan = 4;
+      celula.textContent = "Nenhuma parcela a vencer no período.";
+    } else {
+      dados.parcelas_a_vencer.forEach(parcela => {
+        const linha = tabela.insertRow();
+
+        linha.insertCell().textContent = parcela.nome;
+        linha.insertCell().textContent =
+          formatarData(parcela.data_vencimento);
+        linha.insertCell().textContent =
+          formatarMoeda(parcela.valor_parcela);
+        linha.insertCell().textContent = "A vencer";
+      });
+    }
+
+
+
+  }catch (erro) {
+    console.error("Erro no dashboard:", erro)
+
+    indicadores.forEach(id => {
+      document.getElementById(id).textContent = "Indisponível"
+    })
+
+    tabela.replaceChildren()
+
+    const linha = tabela.insertRow()
+    const celula = linha.insertCell()
+    celula.colSpan = 4
+    celula.textContent = erro.message
+  }
+}
+
+carregarDashboard()
