@@ -82,3 +82,13 @@ CREATE TABLE IF NOT EXISTS auditoria_credito (
     valores_novos JSONB NOT NULL,
     motivo VARCHAR(200) NOT NULL DEFAULT ''
 );
+
+CREATE TABLE produto (
+    id SERIAL PRIMARY KEY,
+    nome VARCHAR(150) NOT NULL,
+    preco_venda DECIMAL(10,2) NOT NULL,
+    quantidade_estoque INTEGER DEFAULT 0,
+    ativo BOOLEAN DEFAULT TRUE
+);
+
+CREATE INDEX produto_nome_idx ON produto (nome);
