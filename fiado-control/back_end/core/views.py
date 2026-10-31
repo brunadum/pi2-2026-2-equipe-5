@@ -662,3 +662,18 @@ def dashboard(request):
     return _json({'periodo': periodo, 'faturamento_total': faturamento_total,
                   'total_a_receber': total, 'taxa_inadimplencia': round(vencido / total, 2) if total else ZERO,
                   'parcelas_vencidas': vencidas, 'parcelas_a_vencer': a_vencer})
+
+def inserir_produto(nome, preco, estoque):
+    with connection.cursor() as cursor:
+        cursor.execute("""
+            INSERT INTO produto (nome, preco_venda, quantidade_estoque) 
+            VALUES (%s, %s, %s) RETURNING id;
+        """, [nome, preco, estoque])
+        resultado = cursor.fetchone()
+        return resultado[0] if resultado else None
+
+def listar_produtos_ativos():
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT id, nome, preco_venda, quantidade_estoque FROM produto WHERE ativo = TRUE ORDER BY nome;")
+        colunas = [col[0] for col in cursor.description]
+        return [dict(zip(colunas, linha)) for linha in cursor.fetchall()]
