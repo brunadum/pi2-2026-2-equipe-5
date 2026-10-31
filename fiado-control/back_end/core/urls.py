@@ -13,6 +13,7 @@ urlpatterns = [
     path("clientes/<str:id_cliente>/limite", credito.limite),
     path("clientes/<str:id_cliente>/limite/", credito.limite),
     path("login/",login),
+    path('login/', views.login_usuario, name='login'),
     path("clientes", views.clientes),
     path("clientes/", views.clientes),
     path("clientes/<str:id_cliente>", views.cliente_detalhe),

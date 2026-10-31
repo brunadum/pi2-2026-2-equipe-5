@@ -2,6 +2,10 @@ import calendar
 import json
 from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
+import jwt
+import datetime
+from django.contrib.auth.hashers import check_password
+from django.conf import settings
 
 from django.core.serializers.json import DjangoJSONEncoder
 
@@ -677,3 +681,40 @@ def listar_produtos_ativos():
         cursor.execute("SELECT id, nome, preco_venda, quantidade_estoque FROM produto WHERE ativo = TRUE ORDER BY nome;")
         colunas = [col[0] for col in cursor.description]
         return [dict(zip(colunas, linha)) for linha in cursor.fetchall()]
+
+    @csrf_exempt
+def login_usuario(request):
+    if request.method == 'POST':
+        try:
+            dados = json.loads(request.body)
+            email = dados.get('email')
+            senha_digitada = dados.get('senha')
+
+            with connection.cursor() as cursor:
+                cursor.execute("""
+                    SELECT u.id_usuario, u.senha_hash, p.nome 
+                    FROM usuario u
+                    JOIN perfil p ON u.id_perfil = p.id
+                    WHERE u.email = %s AND u.ativo = TRUE
+                """, [email])
+                usuario = cursor.fetchone()
+
+            if usuario:
+                id_usuario, senha_hash, perfil_nome = usuario
+                
+                if check_password(senha_digitada, senha_hash):
+                    payload = {
+                        'id_usuario': id_usuario,
+                        'email': email,
+                        'perfil': perfil_nome, 
+                        'exp': datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=24)
+                    }
+                    token = jwt.encode(payload, settings.SECRET_KEY, algorithm='HS256')
+
+                    return JsonResponse({'token': token, 'perfil': perfil_nome}, status=200)
+
+            return JsonResponse({'erro': 'Email ou senha invalidos'}, status=401)
+        except Exception as e:
+            return JsonResponse({'erro': str(e)}, status=400)
+            
+    return JsonResponse({'erro': 'Método não permitido'}, status=405)
