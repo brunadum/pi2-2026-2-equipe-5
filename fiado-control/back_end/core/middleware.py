@@ -28,7 +28,7 @@ class JWTAuthenticationMiddleware:
                 id_usuario = payload.get("id_usuario")
 
                 if type(id_usuario) is int:
-                    request.usuario = Usuario.objects.filter(
+                    request.usuario = Usuario.objects.select_related('perfil_acesso').filter(
                         pk=id_usuario,
                         ativo=True
                     ).first()

@@ -163,9 +163,15 @@ As duas rotas de documentação são públicas. Para operações protegidas, use
 o botão **Authorize** e informe o token Bearer emitido pela autenticação.
 As descrições das operações indicam permissões e dependências de integração.
 
-O login atual `/api/login/` ainda não emite token. As operações de crédito
-exigem que a camada de autenticação valide o token e disponibilize a identidade
-em `request.usuario`; enquanto essa integração estiver pendente, retornam 401.
+Faça `POST /api/login/` com `email` e `senha` para obter `token`, `nome` e
+`perfil`. Envie o token nas operações protegidas como
+`Authorization: Bearer <token>`. Ele expira em 24 horas.
+
+O middleware verifica o JWT e disponibiliza `request.usuario`. Os perfis
+`ADMIN` e `COMUM` correspondem, respectivamente, a gerente e funcionário;
+os nomes `gerente` e `funcionario` também são reconhecidos na tabela de perfis.
+O banco é consultado a cada requisição: inativação ou mudança de perfil
+passam a valer mesmo para tokens emitidos anteriormente.
 
 A interface carrega o CSS e o JavaScript do **Swagger UI 5.30.2** pelo CDN
 `cdn.jsdelivr.net`, que precisa estar acessível no navegador. A especificação
@@ -189,6 +195,21 @@ No Docker Compose, use `docker compose exec backend python manage.py migrate`.
 Os scripts de inicialização do PostgreSQL só executam na criação de uma base
 vazia; uma base existente precisa receber as migrações para atualizar a estrutura.
 
+A migração `0003_integrar_perfis_usuario` converte a coluna antiga de perfil
+em uma referência à tabela `perfil`, preservando os usuários e seus hashes.
+Ela também atende bases que já utilizam `id_perfil`. Essa conversão não tem
+reversão automática; faça backup antes de aplicá-la em uma base com dados reais.
+
+Para criar as contas de teste em uma base de desenvolvimento já migrada:
+
+```bash
+python core/seed_usuarios.py
+```
+
+O script inclui `admin@teste.com` (ADMIN) e `comum@teste.com` (COMUM), com a senha
+de desenvolvimento definida no próprio script e armazenada somente como hash
+no banco. Contas existentes não são sobrescritas.
+
 ## Testes automatizados
 
 Com o ambiente virtual ativo e as variáveis `DB_*` configuradas, instale as
@@ -210,9 +231,16 @@ Os testes de integração criam e removem um banco separado chamado
 `test_<DB_NAME>`. O usuário PostgreSQL precisa de permissão para criá-lo.
 A preparação dos testes recria tabelas e dados somente nesse banco de teste.
 
-Os cenários de crédito simulam a identidade em um middleware exclusivo de
-teste; isso verifica as regras das rotas, mas não comprova a integração do
-login com tokens válidos, inválidos ou expirados.
+Os testes de regras de crédito isolam a identidade com um middleware exclusivo
+de teste. Já a suíte abaixo executa login, emissão e validação de JWT, acesso
+às rotas e permissões usando o middleware real:
+
+```bash
+python manage.py test core.test_integracao_jwt core.test_migracao_perfis --noinput --verbosity 2
+```
+
+Ela cobre ADMIN/COMUM, os nomes gerente/funcionário, escrita restrita, auditoria,
+expiração, assinatura inválida, inativação e alteração do perfil após o login.
 
 ## Rota de teste
 

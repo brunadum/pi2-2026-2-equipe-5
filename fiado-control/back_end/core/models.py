@@ -1,12 +1,33 @@
 from django.db import models
 
+
+class Perfil(models.Model):
+    id = models.AutoField(primary_key=True)
+    nome = models.CharField(max_length=50, unique=True)
+    descricao = models.CharField(max_length=255, null=True, blank=True)
+
+    class Meta:
+        db_table = 'perfil'
+        managed = False
+
+
 class Usuario(models.Model):
     id_usuario = models.AutoField(primary_key=True)
     nome = models.CharField(max_length=100)
     email = models.CharField(max_length=100, unique=True)
     senha_hash = models.CharField(max_length=255)
-    perfil = models.CharField(max_length=20)
+    perfil_acesso = models.ForeignKey(Perfil, db_column='id_perfil', null=True, on_delete=models.PROTECT)
     ativo = models.BooleanField(default=True)
+
+    @property
+    def perfil(self):
+        """Perfis do banco normalizados para as permissões do contrato da API."""
+        if self.perfil_acesso_id is None:
+            return None
+        return {
+            'ADMIN': 'gerente', 'GERENTE': 'gerente',
+            'COMUM': 'funcionario', 'FUNCIONARIO': 'funcionario',
+        }.get(self.perfil_acesso.nome.strip().upper())
 
     class Meta:
         db_table = 'usuario'

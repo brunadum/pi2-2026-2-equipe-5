@@ -28,12 +28,18 @@ class RotasBase(TransactionTestCase):
     @classmethod
     def _reset_banco(cls):
         schema_sql = """
+        CREATE TABLE perfil (
+            id SERIAL PRIMARY KEY,
+            nome VARCHAR(50) UNIQUE NOT NULL,
+            descricao VARCHAR(255)
+        );
+
         CREATE TABLE usuario (
             id_usuario SERIAL PRIMARY KEY,
             nome VARCHAR(100) NOT NULL,
             email VARCHAR(100) UNIQUE NOT NULL,
             senha_hash VARCHAR(255) NOT NULL,
-            perfil VARCHAR(20) NOT NULL CHECK (perfil IN ('gerente', 'funcionario')),
+            id_perfil INTEGER REFERENCES perfil(id),
             ativo BOOLEAN DEFAULT TRUE
         );
 
@@ -104,10 +110,11 @@ class RotasBase(TransactionTestCase):
         """
 
         seed_sql = """
-        INSERT INTO usuario (nome, email, senha_hash, perfil) VALUES 
-        ('Carlos Funcionario', 'funcionario@loja.com', 'hash123', 'funcionario'),
-        ('Maria Gerente', 'gerente@loja.com', 'hash123', 'gerente'),
-        ('Ana Vendedora', 'ana@loja.com', 'hash123', 'funcionario');
+        INSERT INTO perfil (nome) VALUES ('ADMIN'), ('COMUM');
+        INSERT INTO usuario (nome, email, senha_hash, id_perfil) VALUES
+        ('Carlos Funcionario', 'funcionario@loja.com', 'hash123', 2),
+        ('Maria Gerente', 'gerente@loja.com', 'hash123', 1),
+        ('Ana Vendedora', 'ana@loja.com', 'hash123', 2);
 
         INSERT INTO cliente (nome, cpf, limite_credito) VALUES 
         ('João Silva', '111.111.111-11', 1500.00),          
