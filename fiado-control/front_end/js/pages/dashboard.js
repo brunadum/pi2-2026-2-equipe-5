@@ -96,12 +96,14 @@ async function carregarDashboard() {
   const tabela=document.getElementById("installment-rows")
 
   try {
+    const token=sessionStorage.getItem("token")
     const resposta = await fetch(
   "http://localhost:8001/api/dashboard?periodo=mes",
   {
     method: "GET",
     headers: {
-      "Accept": "application/json"
+      "Accept": "application/json",
+      "Authorization": `Bearer ${token}`
     }
   }
 )
@@ -183,3 +185,38 @@ async function carregarDashboard() {
 }
 
 carregarDashboard()
+
+const nomeUsuario = sessionStorage.getItem("nome");
+const perfilUsuario = sessionStorage.getItem("perfil");
+
+const nomeCabecalho = document.getElementById("nome-usuario");
+const nomeSidebar = document.getElementById("nome-usuario-sidebar");
+const avatarUsuario = document.getElementById("avatar-usuario");
+const perfilSidebar = document.getElementById("perfil-usuario");
+
+if (nomeCabecalho) {
+    nomeCabecalho.textContent = nomeUsuario || "Usuário";
+}
+
+if (nomeSidebar) {
+    nomeSidebar.textContent = nomeUsuario || "Usuário";
+}
+
+if (avatarUsuario && nomeUsuario) {
+    avatarUsuario.textContent = nomeUsuario
+        .trim()
+        .split(/\s+/)
+        .slice(0, 2)
+        .map(parte => parte[0].toUpperCase())
+        .join("");
+}
+
+if (perfilSidebar) {
+    perfilSidebar.textContent =
+        perfilUsuario === "ADMIN" ? "Administrador" :
+        perfilUsuario === "COMUM" ? "Funcionário" : "Usuário";
+}
+
+
+console.log("Nome:", sessionStorage.getItem("nome"));
+console.log("Perfil:", sessionStorage.getItem("perfil"));

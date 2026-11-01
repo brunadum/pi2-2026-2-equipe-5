@@ -95,20 +95,31 @@
 
   async function listarClientes() {
     const dados = await request("/clientes");
-    const store = lerStore();
-    const excluidos = new Set(store.excluidos.map(String));
-    const doServidor = dados.filter((c) => !excluidos.has(String(c.id_cliente))).map((c) => normalizarCliente(c, store));
-
-    // Clientes criados só localmente deixam de existir aqui quando o servidor passa a tê-los.
-    const cpfsServidor = new Set(doServidor.map((c) => c.cpf));
-    const locais = store.clientes.filter((c) => !cpfsServidor.has(c.cpf));
-    if (locais.length !== store.clientes.length) {
-      store.clientes = locais;
-      salvarStore(store);
+    if(!Array.isArray(dados)){
+      throw new Error("Resposta inválida da API de clientes")
     }
 
-    return [...doServidor, ...locais.map((c) => ({ ...c, local: true }))].filter((c) => c.ativo);
+    return dados
+    .map((c) => ({
+      id: c.id_cliente,
+      nome: c.nome,
+      cpf: apenasDigitos(c.cpf),
+      telefone: (Array.isArray(c.telefone)
+        ? c.telefone
+        : [c.telefone]
+      ).filter(Boolean).map(apenasDigitos),
+      endereco: c.endereco ?? null,
+      limite_credito: Number(c.limite_credito) || 0,
+      credito_bloqueado: !!c.credito_bloqueado,
+      ativo: c.ativo !== false,
+      local: false
+    }))
+    .filter((c) => c.ativo);
   }
+
+
+
+
 
   async function obterCliente(id) {
     const store = lerStore();

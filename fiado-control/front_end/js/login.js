@@ -24,7 +24,7 @@ loginForm.addEventListener("submit", async (event) => {
   const password = passwordInput.value;
 
   if (!username || !password) {
-    formMessage.textContent = "Preencha o nome do usuário e a senha.";
+    formMessage.textContent = "Preencha o email e a senha.";
     formMessage.style.color = "#b42318";
     formMessage.classList.add("visible");
     return;
@@ -45,18 +45,24 @@ loginForm.addEventListener("submit", async (event) => {
     });
 
     const data = await response.json();
-    console.log("Status HTTP:", response.status);
-    console.log("Resposta da API:", data);
-    if (!response.ok) {
-      showInfo(data.erro || "Usuário ou senha inválidos.", "#b42318");
-      return;
-    }
 
-    if (data.mensagem === "Login realizado com sucesso" && data.usuario) {
-      window.location.href = "dashboard.html";
-    } else {
-      showInfo("E-mail ou senha inválidos.", "#b42318");
-    }
+console.log("Status HTTP:", response.status);
+console.log("Nome recebido da API:", data.nome);
+
+if (!response.ok) {
+    showInfo(data.erro || "Usuário ou senha inválidos.", "#b42318");
+    return;
+}
+
+if (data.token && data.perfil && data.nome) {
+    sessionStorage.setItem("token", data.token);
+    sessionStorage.setItem("perfil", data.perfil);
+    sessionStorage.setItem("nome", data.nome);
+
+    window.location.href = "dashboard.html";
+} else {
+    showInfo("Resposta incompleta do servidor.", "#b42318");
+}
   } catch (error) {
     showInfo("Não foi possível conectar ao servidor.", "#b42318");
     console.error("Erro no login:", error);
