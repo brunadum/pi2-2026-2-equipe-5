@@ -682,7 +682,7 @@ def listar_produtos_ativos():
         colunas = [col[0] for col in cursor.description]
         return [dict(zip(colunas, linha)) for linha in cursor.fetchall()]
 
-    @csrf_exempt
+@csrf_exempt
 def login_usuario(request):
     if request.method == 'POST':
         try:
@@ -692,7 +692,7 @@ def login_usuario(request):
 
             with connection.cursor() as cursor:
                 cursor.execute("""
-                    SELECT u.id_usuario, u.senha_hash, p.nome 
+                    SELECT u.id_usuario, u.nome,u.senha_hash, p.nome 
                     FROM usuario u
                     JOIN perfil p ON u.id_perfil = p.id
                     WHERE u.email = %s AND u.ativo = TRUE
@@ -700,7 +700,7 @@ def login_usuario(request):
                 usuario = cursor.fetchone()
 
             if usuario:
-                id_usuario, senha_hash, perfil_nome = usuario
+                id_usuario,nome,senha_hash, perfil_nome = usuario
                 
                 if check_password(senha_digitada, senha_hash):
                     payload = {
@@ -711,7 +711,9 @@ def login_usuario(request):
                     }
                     token = jwt.encode(payload, settings.SECRET_KEY, algorithm='HS256')
 
-                    return JsonResponse({'token': token, 'perfil': perfil_nome}, status=200)
+                    return JsonResponse({
+                                         'token': token,'nome': nome,
+                                         'perfil': perfil_nome}, status=200)
 
             return JsonResponse({'erro': 'Email ou senha invalidos'}, status=401)
         except Exception as e:
