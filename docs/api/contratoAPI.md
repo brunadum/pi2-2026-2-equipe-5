@@ -17,18 +17,36 @@ As operações disponíveis e seus payloads verificáveis estão no OpenAPI em
 
 | Estado | Operações |
 |---|---|
-| Existentes, aguardam proteção global de Backend 1/3 (#60) | `GET/POST /clientes`, `GET /clientes/{id}`, `GET /clientes/{id}/saldo`, `GET /clientes/{id}/parcelas`, `GET/POST /vendas`, `POST /pagamentos`, `GET /dashboard` |
-| RF06 implementado, exige integração da identidade | `GET/PUT /clientes/{id}/limite`, `PUT /clientes/{id}/credito/bloqueio` |
-| Login legado existente | `POST /login/` recebe `email` e `senha`, retorna dados de usuário; ainda não emite token nem cria sessão autenticada |
+| Existentes, aguardam proteção global por perfil | `GET/POST /clientes`, `GET /clientes/{id}`, `GET /clientes/{id}/saldo`, `GET /clientes/{id}/parcelas`, `GET/POST /vendas`, `POST /pagamentos` |
+| Protegidas por JWT e perfil do banco | `GET/PUT /clientes/{id}/limite`, `PUT /clientes/{id}/credito/bloqueio`, `GET /dashboard` |
+| Login JWT existente | `POST /login/` recebe `email` e `senha`; retorna `token`, `nome` e `perfil`. O JWT HS256 expira em 24 horas |
 | Planejadas | As demais operações do índice, incluindo `/auth/login` e `/auth/logout` |
 
-Nas novas rotas RF06, a camada de autenticação de Backend 1/3 deve validar o
-token e definir `request.usuario` como uma instância de `core.models.Usuario`.
+Nas rotas RF06, o middleware valida assinatura e expiração do JWT e define
+`request.usuario` como uma instância de `core.models.Usuario`.
 As views recarregam o usuário no banco e verificam situação ativa e perfil.
 Sem essa identidade interna retornam **401**, inclusive quando um header
 Bearer arbitrário é enviado. Nenhum ID ou perfil do corpo autentica o autor.
 A consulta permite ambos os perfis; as duas escritas exigem gerente.
-O login legado, sozinho, ainda não permite usar RF06 pelo frontend.
+Os perfis da tabela `perfil` são normalizados nas permissões: `ADMIN` equivale
+a gerente e `COMUM` a funcionário; os nomes `gerente` e `funcionario` também
+são aceitos. O token não substitui a consulta ao perfil e à situação no banco.
+
+Exemplo de entrada do login implementado:
+
+```json
+{"email": "usuario@exemplo.com", "senha": "senha-do-usuario"}
+```
+
+Resposta HTTP 200:
+
+```json
+{"token": "<jwt>", "nome": "Nome do usuário", "perfil": "ADMIN"}
+```
+
+Credencial inválida ou conta inativa retorna 401. JSON inválido retorna 400.
+O login ainda usa o envelope de erro `{"erro": "texto"}`; o contrato de
+`/auth/login` abaixo é uma rota planejada, diferente da rota atual `/login/`.
 
 Critérios e testes por issue: [testes-sprint4-backend2.md](testes-sprint4-backend2.md).
 

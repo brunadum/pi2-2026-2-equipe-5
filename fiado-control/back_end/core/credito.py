@@ -19,9 +19,8 @@ def _usuario_atual(request):
     usuario = getattr(request, 'usuario', None)
     if not isinstance(usuario, Usuario) or identificador(usuario.pk) is None:
         return None
-    with connection.cursor() as cursor:
-        cursor.execute('SELECT id_usuario, perfil FROM usuario WHERE id_usuario = %s AND ativo = TRUE', [usuario.pk])
-        return cursor.fetchone()
+    atual = Usuario.objects.select_related('perfil_acesso').filter(pk=usuario.pk, ativo=True).first()
+    return (atual.pk, atual.perfil) if atual is not None else None
 
 
 def _resumo(cliente):

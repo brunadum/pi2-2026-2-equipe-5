@@ -2,8 +2,8 @@
 
 Alterações locais. Publicação, comentários e fechamento das issues ficam com o
 responsável. Os testes usam PostgreSQL real em banco de teste, com schema/seed
-isolados. A identidade é simulada pelo middleware **exclusivo de teste**.
-Isso comprova as regras das views, não uma autenticação Bearer ponta a ponta.
+isolados. Os testes de regras isolam a identidade com middleware exclusivo de
+teste; `core.test_integracao_jwt` verifica o login e o Bearer com o middleware real.
 
 ## #63 — consultar limite
 
@@ -12,6 +12,7 @@ Classe `ConsultaCreditoTests`, em `core/test_credito.py`:
 | Critério | Teste | Resultado exigido |
 |---|---|---|
 | Formato, dívida e coerência com saldo | `test_consulta_coerente_com_saldo_para_funcionario` | HTTP 200 com cinco campos iguais aos de `/saldo` |
+| Valores exatos e preservação dos dados | `test_limite_500_divida_180_disponivel_320_sem_alterar_dados` | Limite 500, dívida 180 e disponível 320 |
 | Limite/dívida zero e URL com barra | `test_cliente_sem_divida_e_limite_zero` | Valores zero e crédito desbloqueado |
 | Dívida maior que limite e cliente bloqueado | `test_consulta_bloqueada_preserva_disponivel_financeiro` | Disponível zero, sem apagar dívida ou bloqueio |
 | Não autenticado e headers forjados | `test_sem_identidade_nem_header_inventado_nao_acessa` | HTTP 401 |
@@ -58,7 +59,8 @@ Classe `BloqueioCreditoTests`, em `core/test_credito.py`:
   serve como insumo para a matriz geral mantida por Requisitos.
 - `ContratoRespostasTests.test_respostas_reais_das_13_operacoes_correspondem_ao_openapi`
   executa as 13 operações documentadas e valida os JSONs reais usando os schemas
-  OpenAPI (o login legado é exercitado com entrada ausente e resposta 400).
+  OpenAPI (o login é exercitado com entrada ausente e resposta 401; o sucesso
+  com JWT é validado em `JWTIntegracaoTests`).
 - `DocumentacaoTests.test_credito_descreve_perfis_erros_e_dependencia_de_autenticacao`
   confere Bearer, respostas HTTP e a dependência explícita de `request.usuario`.
 - Contrato e lista de erros atualizados em `contratoAPI.md` e `formato-de-erros.md`.
@@ -73,11 +75,11 @@ Classe `DocumentacaoTests`, em `core/test_documentacao.py`:
 | Apenas operações existentes, IDs únicos | `test_schema_publico_e_somente_operacoes_existentes` | 13 operações e URLs resolvíveis |
 | HTML configura Swagger local | `test_swagger_aponta_schema_local_sem_envio_a_validador_externo` | UI aponta JSON local, validador remoto desabilitado, sem persistir autorização |
 | Erros das rotas de documentação | `test_documentacao_rejeita_post_com_json` | HTTP 405 padronizado |
-| Bearer, perfis e integração pendente | `test_credito_descreve_perfis_erros_e_dependencia_de_autenticacao` | Descrição e respostas correspondentes às views |
+| Bearer, perfis e identidade autenticada | `test_credito_descreve_perfis_erros_e_dependencia_de_autenticacao` | Descrição e respostas correspondentes às views |
 
 Inspeção no navegador em 27/10/2026: `/api/docs/`, JSON e recursos Swagger UI
 retornaram HTTP 200; 13 operações renderizadas e nenhum erro no console.
-O CDN precisa estar acessível. Isso não comprova a autenticação ainda pendente.
+O CDN precisa estar acessível. A inspeção visual é independente dos testes JWT.
 
 ## Como executar e ver cada resultado
 
@@ -96,11 +98,15 @@ No PowerShell, a partir de `fiado-control/back_end`:
 .\.venv\Scripts\python.exe manage.py test core --noinput
 ```
 
-## Pendências de integração
+## Integração JWT e perfis
 
-- Backend 1/3 deve entregar a validação do token e definir a identidade interna.
-  Testes de token válido, inválido e expirado por HTTP real pertencem a essa
-  integração; não estão sendo declarados aprovados aqui.
+- `JWTIntegracaoTests` usa a rota de login e o middleware real, sem identidade
+  simulada, para testar ADMIN/COMUM e os nomes gerente/funcionário, permissões,
+  cenário 500/180/320, auditoria, tokens expirados ou adulterados e usuários inativos.
+- `MigracaoPerfisTests` verifica conversão de bases legadas e preservação de
+  perfis em bases já normalizadas.
+- O teste de seed verifica um usuário de cada perfil com hash, sem duplicação.
+- Execute: `python manage.py test core.test_integracao_jwt core.test_migracao_perfis --noinput --verbosity 2`.
 - Aplicar `manage.py migrate` no ambiente usado pela equipe antes de utilizar
   as escritas. A migração é exercitada no banco de teste; não altera a base de
   desenvolvimento durante esses testes.

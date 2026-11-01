@@ -98,10 +98,8 @@ SCHEMAS = {
         'parcelas_vencidas': lista(PARCELA_DASHBOARD), 'parcelas_a_vencer': lista(PARCELA_DASHBOARD),
     }),
     'LoginEntrada': objeto({'email': TEXTO, 'senha': {'type': 'string', 'format': 'password'}}),
-    'LoginAtual': objeto({'mensagem': TEXTO, 'usuario': objeto({
-        'id_usuario': ID, 'nome': TEXTO, 'email': TEXTO,
-        'perfil': {'type': 'string', 'enum': ['gerente', 'funcionario']},
-    })}),
+    'LoginAtual': objeto({'token': {'type': 'string', 'description': 'JWT HS256 com validade de 24 horas'},
+                          'nome': TEXTO, 'perfil': {'type': 'string', 'enum': ['ADMIN', 'COMUM', 'gerente', 'funcionario']}}),
     # O login legado ainda não usa o envelope padronizado de erro.
     'ErroLoginAtual': objeto({'erro': TEXTO}),
 }
@@ -133,9 +131,10 @@ CLIENTE_ID = {'name': 'id_cliente', 'in': 'path', 'required': True, 'schema': ID
 ERROS_CREDITO = [(400, 'json_invalido, campo_obrigatorio ou campo_invalido'),
                  (401, 'nao_autenticado: identidade ausente ou usuário inativo'),
                  (403, 'acesso_negado: perfil sem permissão'), (404, 'cliente_nao_encontrado')]
-INTEGRACAO = ('O middleware de Backend 1/3 deve validar o token e definir request.usuario como '
-              'core.models.Usuario. Enquanto essa integração não existir, retorna 401. '
-              'A identidade, situação ativa e perfil são conferidos no servidor.')
+INTEGRACAO = ('O middleware JWT valida a assinatura e expiração do Bearer e define request.usuario como '
+              'core.models.Usuario. ADMIN equivale a gerente e COMUM a funcionário; '
+              'os nomes gerente/funcionario também são aceitos na tabela perfil. '
+              'A identidade, situação ativa e perfil são conferidos no banco a cada requisição.')
 LEGADO = ('Operação existente. A proteção global por Bearer/perfil prevista no contrato '
           'ainda depende de Backend 1/3 (#60); esta versão não aplica essa proteção à rota legada.')
 
@@ -199,15 +198,17 @@ PATHS = {
                                 (404, 'parcela_nao_encontrada'), (422, 'valor_excede_devido ou parcela_ja_paga')]),
     },
     '/dashboard': {
-        'get': operacao('consultarDashboard', 'Consultar dashboard financeiro', 'RF09', ref('Dashboard'), descricao=LEGADO,
+        'get': operacao('consultarDashboard', 'Consultar dashboard financeiro', 'RF09', ref('Dashboard'),
+                        descricao='Somente gerente ativo autenticado. ' + INTEGRACAO, autenticada=True,
                         parametros=[parametro('periodo', {'type': 'string', 'enum': ['dia', 'semana', 'mes'], 'default': 'mes'}),
                                     parametro('dias', {'type': 'integer', 'minimum': 1, 'default': 7})],
-                        erros=[(400, 'periodo_invalido ou campo_invalido')]),
+                        erros=[(400, 'periodo_invalido ou campo_invalido'), (401, 'nao_autenticado'), (403, 'Perfil sem permissão')]),
     },
     '/login/': {
-        'post': operacao('loginAtual', 'Login atual — integração de autenticação pendente', 'RNF01', ref('LoginAtual'),
-                         entrada='LoginEntrada', descricao='Rota legada /api/login/. Não emite token nem cria sessão. '
-                         'Não habilita RF06; /auth/login e /auth/logout previstos ainda não existem nesta versão.'),
+        'post': operacao('loginAtual', 'Autenticar usuário e obter JWT', 'RNF01', ref('LoginAtual'),
+                         entrada='LoginEntrada', descricao='POST /api/login/ valida senha com hash e usuário ativo. '
+                         'Retorna token, nome e perfil. Envie o token como Authorization: Bearer <token>. '
+                         'O JWT expira em 24 horas. /auth/login e /auth/logout ainda não existem nesta versão.'),
     },
 }
 PATHS['/vendas']['post']['responses']['422'] = resposta(
@@ -215,18 +216,18 @@ PATHS['/vendas']['post']['responses']['422'] = resposta(
     'vencimento_invalido ou rejeição por credito_bloqueado, parcelas_em_atraso, limite_credito_excedido')
 for codigo in ('400', '401'):
     PATHS['/login/']['post']['responses'][codigo] = resposta(ref('ErroLoginAtual'), 'Dados ausentes/JSON inválido ou credenciais inválidas')
-PATHS['/login/']['post']['responses']['405'] = {'description': 'Método não permitido (resposta legada sem JSON)'}
+PATHS['/login/']['post']['responses']['405'] = resposta(ref('ErroLoginAtual'), 'Método não permitido')
 
 SCHEMA = {
     'openapi': '3.0.3',
     'info': {'title': 'Fiado Control — API', 'version': '0.4.0',
-             'description': 'Sprint 4 / Backend 2. Somente operações implementadas. '
-             'As três operações RF06 exigem integração com a identidade de Backend 1/3 e retornam 401 até lá. '
-             'O login legado ainda não emite token; as demais rotas aguardam a proteção global da issue #60.'},
+             'description': 'Somente operações implementadas. Login JWT em /login/. '
+             'Crédito e dashboard exigem Bearer válido e verificam as permissões no banco. '
+             'As demais operações ainda aguardam a proteção global por perfil.'},
     'servers': [{'url': '/api', 'description': 'Backend no mesmo servidor desta documentação'}],
     'paths': PATHS,
     'components': {'schemas': SCHEMAS, 'securitySchemes': {
         'bearerAuth': {'type': 'http', 'scheme': 'bearer',
-                       'description': 'Token emitido e validado por Backend 1/3; integração pendente nesta versão.'},
+                       'bearerFormat': 'JWT', 'description': 'Token obtido em POST /api/login/, válido por 24 horas.'},
     }},
 }

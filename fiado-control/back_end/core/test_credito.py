@@ -44,6 +44,32 @@ class ConsultaCreditoTests(RotasBase):
             self.assertEqual(credito[campo], saldo[campo])
 
     @override_settings(CREDITO_TESTE_USUARIO=2)
+    def test_limite_500_divida_180_disponivel_320_sem_alterar_dados(self):
+        vencimento = date.today() + timedelta(days=30)
+        with connection.cursor() as cursor:
+            cursor.execute('UPDATE cliente SET limite_credito = 500 WHERE id_cliente = 4')
+            cursor.execute('''INSERT INTO venda (id_cliente, id_usuario, valor_total, modalidade, status)
+                              VALUES (4, 2, 180, 'fiado', 'aprovada') RETURNING id_venda''')
+            venda_id = cursor.fetchone()[0]
+            cursor.execute('''INSERT INTO pagamento (id_venda, valor_parcela, data_vencimento, status)
+                              VALUES (%s, 180, %s, 'pendente')''', [venda_id, vencimento])
+            cursor.execute('SELECT * FROM cliente WHERE id_cliente = 4')
+            cliente_antes = cursor.fetchone()
+            cursor.execute('SELECT * FROM pagamento WHERE id_venda = %s', [venda_id])
+            parcelas_antes = cursor.fetchall()
+        resposta = self.client.get('/api/clientes/4/limite')
+        self.assertEqual(resposta.status_code, 200)
+        self.assertEqual(resposta.json(), {
+            'id_cliente': 4, 'limite_credito': 500, 'saldo_devedor': 180,
+            'limite_disponivel': 320, 'credito_bloqueado': False,
+        })
+        with connection.cursor() as cursor:
+            cursor.execute('SELECT * FROM cliente WHERE id_cliente = 4')
+            self.assertEqual(cursor.fetchone(), cliente_antes)
+            cursor.execute('SELECT * FROM pagamento WHERE id_venda = %s', [venda_id])
+            self.assertEqual(cursor.fetchall(), parcelas_antes)
+
+    @override_settings(CREDITO_TESTE_USUARIO=2)
     def test_cliente_sem_divida_e_limite_zero(self):
         self.assertEqual(self.client.get('/api/clientes/4/limite/').json(), {
             'id_cliente': 4, 'limite_credito': 0, 'saldo_devedor': 0,
@@ -165,7 +191,7 @@ class AlteracaoCreditoTests(CreditoBase):
     @override_settings(CREDITO_TESTE_USUARIO=2)
     def test_usuario_inativado_ou_perfil_alterado_nao_mantem_permissao(self):
         with connection.cursor() as cursor:
-            cursor.execute("UPDATE usuario SET perfil = 'funcionario' WHERE id_usuario = 2")
+            cursor.execute("UPDATE usuario SET id_perfil = (SELECT id FROM perfil WHERE nome = 'COMUM') WHERE id_usuario = 2")
         self.assertErro(self.put({'limite_credito': 200}), 403, 'acesso_negado')
         with connection.cursor() as cursor:
             cursor.execute('UPDATE usuario SET ativo = FALSE WHERE id_usuario = 2')
@@ -296,7 +322,7 @@ class ContratoRespostasTests(CreditoBase):
             ('post', '/vendas', {'id_cliente': 5, 'modalidade': 'fiado', 'valor_total': 100,
                                'data_primeiro_vencimento': (date.today() + timedelta(days=30)).isoformat()}, 201),
             ('post', '/pagamentos', {'id_parcela': 2, 'valor_recebido': 10}, 201),
-            ('post', '/login/', {}, 400),
+            ('post', '/login/', {}, 401),
         ]
         for metodo, caminho, corpo, status in casos:
             with self.subTest(metodo=metodo, caminho=caminho):
