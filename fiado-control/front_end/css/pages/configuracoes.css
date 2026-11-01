@@ -37,6 +37,10 @@
   white-space: nowrap;
 }
 
+.settings-tab { text-decoration: none; }
+
+.settings-tab:hover { color: var(--ink); text-decoration: none; }
+
 .settings-tab.active {
   color: var(--ink);
   background: #f3f6fb;

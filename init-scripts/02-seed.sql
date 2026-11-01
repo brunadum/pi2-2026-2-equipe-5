@@ -1,7 +1,12 @@
-INSERT INTO usuario (nome, email, senha_hash, perfil) VALUES 
-('Carlos Funcionario', 'funcionario@loja.com', 'hash123', 'funcionario'),
-('Maria Gerente', 'gerente@loja.com', 'hash123', 'gerente'),
-('Ana Vendedora', 'ana@loja.com', 'hash123', 'funcionario');
+INSERT INTO perfil (nome, descricao) VALUES
+('gerente', 'Acesso total'),
+('funcionario', 'Acesso as vendas')
+ON CONFLICT (nome) DO NOTHING;
+
+INSERT INTO usuario (nome, email, senha_hash, id_perfil) VALUES
+('Carlos Funcionario', 'funcionario@loja.com', 'hash123', (SELECT id FROM perfil WHERE nome = 'funcionario')),
+('Maria Gerente', 'gerente@loja.com', 'hash123', (SELECT id FROM perfil WHERE nome = 'gerente')),
+('Ana Vendedora', 'ana@loja.com', 'hash123', (SELECT id FROM perfil WHERE nome = 'funcionario'));
 
 INSERT INTO cliente (nome, cpf, limite_credito) VALUES 
 ('João Silva', '111.111.111-11', 1500.00),          

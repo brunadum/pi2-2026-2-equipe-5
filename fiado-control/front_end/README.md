@@ -197,3 +197,25 @@ Acesso: ícone de medidor na linha do cliente em **Clientes** e botão **Limite 
 * **Alterar limite:** `PUT /clientes/{id}/limite` (rota 19 do contrato). O motivo da alteração e o histórico ficam só neste navegador, porque o contrato recebe apenas o valor.
 * **Solicitações de exceção:** `GET /excecoes?status=pendente` e `PUT /excecoes/{id}/aprovar|negar` (rotas 22 a 24). Enquanto essas rotas não existem no Django, a lista mostra as vendas rejeitadas nos últimos 30 dias por limite excedido ou parcela em atraso (crédito bloqueado não admite exceção) que ainda não tiveram decisão, e **Aprovar/Recusar fica registrado só neste navegador** (aviso amarelo na tela). A venda no banco continua rejeitada até o back-end implementar as rotas.
 * Enquanto `PUT /clientes/{id}/limite` não existe, o limite alterado aparece nas telas do front, mas o back-end continua usando o limite do banco para aprovar ou rejeitar vendas.
+
+## Usuários e comprovantes
+
+| Tela | Arquivos | Como chega |
+| --- | --- | --- |
+| Usuários | `pages/usuarios.html`, `js/pages/usuarios.js`, `js/services/usuarios.js`, `css/pages/usuarios.css` | Configurações → aba **Usuários** |
+| Comprovante de venda | `pages/comprovante-venda.html` | Ao registrar uma venda aparece "Imprimir comprovante?"; também há o botão **Ver comprovante** |
+| Comprovante de pagamento | `pages/comprovante-pagamento.html` | Ao confirmar uma baixa aparece "Imprimir comprovante?"; também há o botão **Ver / imprimir comprovante** |
+
+Os dois comprovantes usam `js/pages/comprovante.js` e `js/services/comprovantes.js`. A impressão usa o diálogo do navegador
+(A4, sem menu e botões); nele também dá para "Salvar como PDF".
+
+### Integração com a API
+
+- **Usuários**: `GET/POST /usuarios`, `PUT /usuarios/{id}` e `PUT /usuarios/{id}/inativar` (rotas 25 a 28 do contrato).
+  Perfis da tela → contrato: Administrador = `gerente`; Operador Financeiro e Vendedor(a) = `funcionario`
+  (com `permissoes` diferentes). A senha é enviada em `senha` (obrigatória no cadastro, opcional na edição).
+  Se o back-end responder 404/405 (rota inexistente) ou 401 (exige login), a tela usa o navegador e mostra um aviso amarelo.
+- **Comprovantes**: são montados com o que o back-end devolve (`POST /vendas` → id e parcelas; `POST /pagamentos` → status e saldos)
+  mais os dados da tela (produtos, desconto, forma de pagamento). Ficam guardados no navegador (`fiadoControl.comprovantes.v1`,
+  últimos 80). O back-end ainda não guarda itens da venda nem a forma de pagamento; quando guardar, basta ler esses dados em
+  `comprovante.js` no lugar do que está salvo localmente.

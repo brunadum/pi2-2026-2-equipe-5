@@ -682,7 +682,7 @@ def listar_produtos_ativos():
         colunas = [col[0] for col in cursor.description]
         return [dict(zip(colunas, linha)) for linha in cursor.fetchall()]
 
-    @csrf_exempt
+@csrf_exempt
 def login_usuario(request):
     if request.method == 'POST':
         try:

@@ -678,8 +678,14 @@
     return `O back-end ainda não possui estas rotas: ${itens.join(", ")}. Esses dados estão sendo calculados e guardados neste navegador até a integração ser concluída.`;
   }
 
+  // Itens e total de uma venda (o back-end só guarda o total; os itens ficam neste navegador).
+  function itensDaVenda(idVenda) {
+    const v = lerStore().vendas.find((x) => String(x.id_venda) === String(idVenda));
+    return v ? { itens: v.itens || [], valor_total: v.valor_total, data: v.data } : null;
+  }
+
   FC.clientes = {
-    listarClientes, obterCliente, obterResumo, obterResumos, obterHistorico, obterParcelasAbertas,
+    itensDaVenda, listarClientes, obterCliente, obterResumo, obterResumos, obterHistorico, obterParcelasAbertas,
     registrarPagamento, alterarLimite, cadastrarCliente, avisoLocal,
     editarCliente, excluirCliente, registrarVenda, registrarBaixa, somarMeses,
     listarAlteracoesLimite, listarExcecoes, decidirExcecao, listarDecisoesExcecao, MOTIVOS_EXCECAO,

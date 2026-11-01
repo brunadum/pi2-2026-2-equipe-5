@@ -135,6 +135,10 @@
     aba.addEventListener("click", () => ativarAba(aba));
   });
 
+  // Links vindos da aba "Usuários" (usuarios.html) abrem a aba pedida: configuracoes.html#vendas
+  const abaDoLink = tabs.find((aba) => aba.dataset.tab === location.hash.slice(1));
+  if (abaDoLink) ativarAba(abaDoLink);
+
   form.addEventListener("submit", async (evento) => {
     evento.preventDefault();
     if (!form.reportValidity()) return;
