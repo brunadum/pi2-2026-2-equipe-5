@@ -1,5 +1,5 @@
-services:
 
+services:
   frontend:
     build:
       context: ./front_end
@@ -40,6 +40,7 @@ services:
     ports:
       - "5433:5432"
     volumes:
+      - fiadocontrol_dados:/var/lib/postgresql/data
       - ../init-scripts:/docker-entrypoint-initdb.d
     networks:
       - fiado-control-network
@@ -47,3 +48,6 @@ services:
 networks:
   fiado-control-network:
     driver: bridge
+
+volumes:
+  fiadocontrol_dados:
