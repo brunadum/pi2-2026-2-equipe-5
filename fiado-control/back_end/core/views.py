@@ -218,17 +218,187 @@ def clientes(request):
     return _erro("metodo_nao_permitido", "Método não permitido nesta rota", 405)
 
 
+
 @csrf_exempt
 def cliente_detalhe(request, id_cliente):
-    if request.method != "GET":
-        return _erro("metodo_nao_permitido", "Método não permitido nesta rota", 405)
     id_cliente = identificador(id_cliente)
+
     if id_cliente is None:
-        return _erro('campo_invalido', 'Identificador do cliente deve ser um inteiro positivo válido', 400)
-    cliente = _buscar_cliente(id_cliente)
-    if cliente is None:
-        return _cliente_nao_encontrado()
-    return _json(cliente)
+        return _erro(
+            "campo_invalido",
+            "Identificador do cliente deve ser um inteiro positivo válido",
+            400,
+        )
+
+    if request.method == "GET":
+        cliente = _buscar_cliente(id_cliente)
+        if cliente is None:
+            return _cliente_nao_encontrado()
+        return _json(cliente)
+
+    if request.method == "PUT":
+        if request.usuario is None:
+          return _erro(
+            "nao_autenticado",
+            "Autenticação necessária",
+            401,
+        )
+        dados = _ler_json(request)
+
+        if dados is None:
+            return _json_invalido()
+
+        faltando = campos_ausentes(
+            dados, CAMPOS_OBRIGATORIOS_CLIENTE
+        )
+        if faltando:
+            return _erro(
+                "campo_obrigatorio",
+                "Campos obrigatórios ausentes",
+                400,
+                campos=faltando,
+            )
+
+        nome = dados["nome"]
+        cpf = normalizar_cpf(dados["cpf"])
+        telefones = dados["telefone"]
+
+        if not isinstance(nome, str) or not 1 <= len(nome.strip()) <= 100:
+            return _erro(
+                "campo_invalido",
+                "Nome deve conter entre 1 e 100 caracteres",
+                400,
+            )
+
+        if cpf is None or not cpf_valido(cpf):
+            return _erro(
+                "cpf_invalido",
+                "CPF inválido",
+                422,
+            )
+
+        if not isinstance(telefones, list):
+            return _erro(
+                "telefone_invalido",
+                "Telefone deve ser uma lista",
+                400,
+            )
+
+        telefones = [normalizar_telefone(t) for t in telefones]
+
+        if not telefones or any(t is None for t in telefones):
+            return _erro(
+                "telefone_invalido",
+                "Informe um telefone válido com DDD",
+                400,
+            )
+
+        telefones = list(dict.fromkeys(telefones))
+
+        with transaction.atomic():
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT id_cliente FROM cliente "
+                    "WHERE id_cliente = %s FOR UPDATE",
+                    [id_cliente],
+                )
+
+                if cursor.fetchone() is None:
+                    return _cliente_nao_encontrado()
+
+                cursor.execute(
+                    "SELECT 1 FROM cliente "
+                    "WHERE REGEXP_REPLACE(cpf, '[^0-9]', '', 'g') = %s "
+                    "AND id_cliente <> %s",
+                    [cpf, id_cliente],
+                )
+
+                if cursor.fetchone():
+                    return _erro(
+                        "cpf_duplicado",
+                        "CPF já cadastrado para outro cliente",
+                        409,
+                    )
+
+                cursor.execute(
+                    "UPDATE cliente SET nome = %s, cpf = %s "
+                    "WHERE id_cliente = %s",
+                    [nome.strip(), cpf, id_cliente],
+                )
+
+                cursor.execute(
+                    "DELETE FROM cliente_telefone WHERE id_cliente = %s",
+                    [id_cliente],
+                )
+
+                for telefone in telefones:
+                    cursor.execute(
+                        "INSERT INTO cliente_telefone "
+                        "(id_cliente, numero) VALUES (%s, %s)",
+                        [id_cliente, telefone],
+                    )
+
+            cliente = _buscar_cliente(id_cliente)
+
+        return _json(cliente)
+
+    
+    
+    if request.method == "DELETE":
+        if request.usuario is None:
+            return _erro(
+                "nao_autenticado",
+                "Autenticação necessária",
+                401,
+            )
+
+        with transaction.atomic():
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT ativo FROM cliente "
+                    "WHERE id_cliente = %s FOR UPDATE",
+                    [id_cliente],
+                )
+
+                registro = cursor.fetchone()
+
+                if registro is None or not registro[0]:
+                    return _cliente_nao_encontrado()
+
+                parcelas = consultar_parcelas(id_cliente)
+
+                saldo_devedor = sum(
+                    (p["valor_atualizado"] for p in parcelas),
+                    ZERO,
+                )
+
+                if saldo_devedor > ZERO:
+                    return _erro(
+                        "cliente_com_divida",
+                        "Cliente possui dívidas pendentes",
+                        409,
+                    )
+
+                cursor.execute(
+                    "UPDATE cliente SET ativo = FALSE "
+                    "WHERE id_cliente = %s",
+                    [id_cliente],
+                )
+
+        return _json({
+            "mensagem": "Cliente desativado com sucesso"
+        })
+
+
+
+    return _erro(
+        "metodo_nao_permitido",
+        "Método não permitido nesta rota",
+        405,
+    )
+
+
+
 
 
 def _parcelas_do_cliente(id_cliente, status=None):

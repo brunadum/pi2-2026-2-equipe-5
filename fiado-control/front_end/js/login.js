@@ -84,3 +84,5 @@ function showInfo(message, color = "#52627d") {
   formMessage.style.color = color;
   formMessage.classList.add("visible");
 }
+
+
