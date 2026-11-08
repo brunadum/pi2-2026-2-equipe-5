@@ -50,7 +50,8 @@ console.log("Status HTTP:", response.status);
 console.log("Nome recebido da API:", data.nome);
 
 if (!response.ok) {
-    showInfo(data.erro || "Usuário ou senha inválidos.", "#b42318");
+    // Mensagem única para credencial inválida: não revela se o usuário ou a senha está errado.
+    showInfo(response.status === 401 ? "Usuário ou senha inválidos." : (data.erro || "Não foi possível entrar."), "#b42318");
     return;
 }
 
@@ -59,7 +60,8 @@ if (data.token && data.perfil && data.nome) {
     sessionStorage.setItem("perfil", data.perfil);
     sessionStorage.setItem("nome", data.nome);
 
-    window.location.href = "dashboard.html";
+    // Gerente abre o dashboard; funcionário vai direto para Nova Venda.
+    window.location.href = ["ADMIN", "GERENTE"].includes(String(data.perfil).toUpperCase()) ? "dashboard.html" : "nova-venda.html";
 } else {
     showInfo("Resposta incompleta do servidor.", "#b42318");
 }
@@ -78,6 +80,15 @@ document.querySelector("#access-link").addEventListener("click", (event) => {
   event.preventDefault();
   showInfo("A solicitação de acesso ainda não está disponível.");
 });
+
+// Avisos vindos de redirecionamentos: login.html?motivo=expirada | login | sair
+const MOTIVOS = {
+  expirada: ["Sua sessão expirou. Entre novamente para continuar.", "#b42318"],
+  login: ["Faça login para acessar o sistema.", "#52627d"],
+  sair: ["Você saiu do sistema com segurança.", "#0b9d4b"],
+};
+const motivo = MOTIVOS[new URLSearchParams(location.search).get("motivo")];
+if (motivo) showInfo(motivo[0], motivo[1]);
 
 function showInfo(message, color = "#52627d") {
   formMessage.textContent = message;

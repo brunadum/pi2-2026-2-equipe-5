@@ -51,9 +51,9 @@
       <td><span class="badge ${atraso ? "badge-late" : "badge-ok"}">${atraso ? "Em atraso" : "Em dia"}</span></td>
       <td class="cell-right"><div class="row-actions">
         <a class="link" href="cliente-detalhes.html?id=${encodeURIComponent(c.id)}" aria-label="Ver detalhes de ${escapeHtml(c.nome)}">Ver detalhes</a>
-        <a class="icon-btn" href="cliente-limite.html?id=${encodeURIComponent(c.id)}" title="Limite e aprovações" aria-label="Limite e aprovações de ${escapeHtml(c.nome)}">${ICONE_LIMITE}</a>
+        ${FC.auth.pode("limite") ? `<a class="icon-btn" href="cliente-limite.html?id=${encodeURIComponent(c.id)}" title="Limite e aprovações" aria-label="Limite e aprovações de ${escapeHtml(c.nome)}">${ICONE_LIMITE}</a>` : ""}
         <button class="icon-btn" type="button" data-acao="editar" title="Editar cliente" aria-label="Editar ${escapeHtml(c.nome)}">${ICONE_EDITAR}</button>
-        <button class="icon-btn danger" type="button" data-acao="excluir" title="Excluir cliente" aria-label="Excluir ${escapeHtml(c.nome)}">${ICONE_LIXEIRA}</button>
+        ${FC.auth.pode("excluir_cliente") ? `<button class="icon-btn danger" type="button" data-acao="excluir" title="Excluir cliente" aria-label="Excluir ${escapeHtml(c.nome)}">${ICONE_LIXEIRA}</button>` : ""}
       </div></td>
     </tr>`;
   }

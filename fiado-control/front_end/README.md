@@ -219,3 +219,26 @@ Os dois comprovantes usam `js/pages/comprovante.js` e `js/services/comprovantes.
   mais os dados da tela (produtos, desconto, forma de pagamento). Ficam guardados no navegador (`fiadoControl.comprovantes.v1`,
   últimos 80). O back-end ainda não guarda itens da venda nem a forma de pagamento; quando guardar, basta ler esses dados em
   `comprovante.js` no lugar do que está salvo localmente.
+
+## Autenticação, sessão e perfis (Sprint 4)
+
+- **Login** (`pages/login.html`, `js/login.js`): `POST /api/login/` devolve `token`, `nome` e `perfil`; o front guarda os três
+  em `sessionStorage` (a sessão acaba ao fechar a aba) e abre o Dashboard (gerente) ou Nova Venda (funcionário).
+  Credencial inválida mostra sempre "Usuário ou senha inválidos.", sem dizer qual dos dois está errado.
+- **Proteção das páginas** (`js/shared/auth.js`, carregado no `<head>` de todas as páginas internas): sem token ou com token
+  vencido (lido do `exp` do JWT) vai para `login.html?motivo=login|expirada`; página que o perfil não pode abrir vai para
+  `sem-permissao.html`.
+- **Token em todas as requisições** (`js/services/api.js`): cabeçalho `Authorization: Bearer <token>`.
+  **401** com token enviado = sessão expirada → limpa a sessão e volta ao login com aviso.
+  **403** → "Você não tem permissão para realizar esta ação."
+- **Perfis**: `ADMIN`/`GERENTE` = gerente; qualquer outro = funcionário. Nome e perfil reais aparecem no menu de todas as páginas,
+  com botão **Sair do sistema**.
+
+| Recurso | Gerente | Funcionário |
+| --- | --- | --- |
+| Nova Venda, Clientes (ver, cadastrar, editar), Pagamentos, Comprovantes | sim | sim |
+| Excluir cliente | sim | não (botão some) |
+| Limite e aprovações (`cliente-limite.html`), Dashboard, Relatórios, Configurações, Usuários | sim | não (menu some; abrir direto mostra "sem permissão") |
+
+A matriz segue a coluna *Perfil* do `docs/api/contratoAPI.md`. Esconder telas aqui é só conforto: quem decide é o back-end (403).
+Para mudar quem vê o quê, edite `PAGINAS_GERENTE` e `ACOES_GERENTE` em `js/shared/auth.js`.

@@ -38,10 +38,16 @@
 })();
 
 
+// Cabeçalho com o token da sessão (guardado no login).
+function cabecalhoAuth(){
+  const token=sessionStorage.getItem("token")
+  return token ? {"Accept":"application/json","Authorization":`Bearer ${token}`} : {"Accept":"application/json"}
+}
+
 //conectar o front com backend
 async function carregarCliente(){
   try {
-    const resposta=await fetch("http://localhost:8001/api/clientes")
+    const resposta=await fetch("http://localhost:8001/api/clientes",{headers:cabecalhoAuth()})
     if(!resposta.ok){
        throw new Error("Erro ao consultar o backend")
     }
@@ -56,7 +62,7 @@ carregarCliente()
 
 async function carregarVendas(){
   try {
-    const resposta=await fetch("http://localhost:8001/api/vendas")
+    const resposta=await fetch("http://localhost:8001/api/vendas",{headers:cabecalhoAuth()})
 
     if(!resposta.ok){
         throw new Error("Erro ao consultar o backeend")
@@ -109,10 +115,11 @@ async function carregarDashboard() {
 )
 
     if(resposta.status===401){
-       throw new Error("Autenticação necessária para acessar o dashboard.")
+       if(window.FC&&FC.auth) FC.auth.sessaoExpirada()
+       throw new Error("Sua sessão expirou. Entre novamente.")
     }
     if(resposta.status===403){
-        throw new Error("Apenas o gerente pode acessar o dashboard.")
+        throw new Error("Você não tem permissão para acessar o dashboard.")
     }
     if(!resposta.ok){
         throw new Error("Erro ao consultar os dados do dashboard.")
@@ -185,38 +192,4 @@ async function carregarDashboard() {
 }
 
 carregarDashboard()
-
-const nomeUsuario = sessionStorage.getItem("nome");
-const perfilUsuario = sessionStorage.getItem("perfil");
-
-const nomeCabecalho = document.getElementById("nome-usuario");
-const nomeSidebar = document.getElementById("nome-usuario-sidebar");
-const avatarUsuario = document.getElementById("avatar-usuario");
-const perfilSidebar = document.getElementById("perfil-usuario");
-
-if (nomeCabecalho) {
-    nomeCabecalho.textContent = nomeUsuario || "Usuário";
-}
-
-if (nomeSidebar) {
-    nomeSidebar.textContent = nomeUsuario || "Usuário";
-}
-
-if (avatarUsuario && nomeUsuario) {
-    avatarUsuario.textContent = nomeUsuario
-        .trim()
-        .split(/\s+/)
-        .slice(0, 2)
-        .map(parte => parte[0].toUpperCase())
-        .join("");
-}
-
-if (perfilSidebar) {
-    perfilSidebar.textContent =
-        perfilUsuario === "ADMIN" ? "Administrador" :
-        perfilUsuario === "COMUM" ? "Funcionário" : "Usuário";
-}
-
-
-console.log("Nome:", sessionStorage.getItem("nome"));
-console.log("Perfil:", sessionStorage.getItem("perfil"));
+// Nome e perfil do usuário são preenchidos por js/shared/auth.js em todas as páginas.

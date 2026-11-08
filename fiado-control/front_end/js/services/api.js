@@ -36,6 +36,8 @@
   }
 
   async function request(caminho, { method = "GET", body, signal } = {}) {
+    // Sem sessão válida (ou token vencido): volta para o login antes de chamar a API.
+    if (FC.auth && !FC.auth.logado()) FC.auth.paraLogin(FC.auth.token() ? "expirada" : "login");
     let resposta;
     try {
       resposta = await fetch(baseUrl() + caminho, {
@@ -69,6 +71,17 @@
       } catch {
         /* corpo não-JSON (ex.: 404 HTML do Django) */
       }
+    }
+
+    // 401 com token enviado = sessão expirada/inválida → login. 403 = perfil sem permissão.
+    if (resposta.status === 401 && FC.auth && FC.auth.token()) FC.auth.sessaoExpirada();
+    if (resposta.status === 403) {
+      throw new ApiError({
+        status: 403,
+        codigo: dados?.erro ?? "acesso_negado",
+        mensagem: "Você não tem permissão para realizar esta ação.",
+        dados,
+      });
     }
 
     if (!resposta.ok) {
