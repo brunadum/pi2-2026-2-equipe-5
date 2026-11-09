@@ -1,7 +1,20 @@
-INSERT INTO usuario (nome, email, senha_hash, perfil) VALUES 
-('Carlos Funcionario', 'funcionario@loja.com', 'hash123', 'funcionario'),
-('Maria Gerente', 'gerente@loja.com', 'hash123', 'gerente'),
-('Ana Vendedora', 'ana@loja.com', 'hash123', 'funcionario');
+INSERT INTO perfil (nome, descricao) VALUES 
+('GERENTE', 'Acesso de gerência da loja'),
+('FUNCIONARIO', 'Acesso operacional as vendas')
+ON CONFLICT (nome) DO NOTHING;
+
+
+INSERT INTO usuario (id_usuario, nome, email, senha_hash, id_perfil, ativo) VALUES 
+(1, 'Carlos Funcionario', 'funcionario@loja.com', 'pbkdf2_sha256$1500000$g7CJuOtxprblRMdsCYMvu1$ZHFdjzoNaH1EOnGduqHUnQjEgPr0nuRjAstazaTXbBw=', (SELECT id FROM perfil WHERE nome = 'FUNCIONARIO'), true),
+(2, 'Maria Gerente', 'gerente@loja.com', 'pbkdf2_sha256$1500000$g7CJuOtxprblRMdsCYMvu1$ZHFdjzoNaH1EOnGduqHUnQjEgPr0nuRjAstazaTXbBw=', (SELECT id FROM perfil WHERE nome = 'GERENTE'), true),
+(3, 'Ana Vendedora', 'ana@loja.com', 'pbkdf2_sha256$1500000$g7CJuOtxprblRMdsCYMvu1$ZHFdjzoNaH1EOnGduqHUnQjEgPr0nuRjAstazaTXbBw=', (SELECT id FROM perfil WHERE nome = 'FUNCIONARIO'), true)
+ON CONFLICT (id_usuario) DO UPDATE SET 
+senha_hash = EXCLUDED.senha_hash, 
+id_perfil = EXCLUDED.id_perfil;
+
+SELECT setval('usuario_id_usuario_seq', (SELECT MAX(id_usuario) FROM usuario));
+
+
 
 INSERT INTO cliente (nome, cpf, limite_credito) VALUES 
 ('João Silva', '111.111.111-11', 1500.00),          
