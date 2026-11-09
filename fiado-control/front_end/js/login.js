@@ -4,7 +4,8 @@ const loginForm = document.querySelector("#login-form");
 const usernameInput = document.querySelector("#username");
 const formMessage = document.querySelector("#form-message");
 const submitButton = loginForm.querySelector('button[type="submit"]');
-const API_BASE_URL = (window.FC_CONFIG?.API_BASE_URL || "http://localhost:8001/api").replace(/\/$/, "");
+
+const API_BASE_URL = (window.FC_CONFIG?.API_BASE_URL || "http://localhost:8001").replace(/\/$/, "");
 
 togglePasswordButton.addEventListener("click", () => {
   const showingPassword = passwordInput.type === "text";
@@ -30,7 +31,6 @@ loginForm.addEventListener("submit", async (event) => {
     return;
   }
 
-  // Evita duplo clique: só uma requisição de login por vez.
   if (submitButton.disabled) return;
   submitButton.disabled = true;
   submitButton.textContent = "Entrando…";
@@ -46,7 +46,6 @@ loginForm.addEventListener("submit", async (event) => {
     try { data = await response.json(); } catch { /* corpo não-JSON */ }
 
     if (!response.ok) {
-      // Mensagem única para credencial inválida: não revela se o usuário ou a senha está errado.
       showInfo(response.status === 401 ? "Usuário ou senha inválidos." : (data.erro || "Não foi possível entrar."), "#b42318");
       return;
     }
@@ -60,9 +59,9 @@ loginForm.addEventListener("submit", async (event) => {
     sessionStorage.setItem("perfil", data.perfil);
     sessionStorage.setItem("nome", data.nome);
 
-    // Gerente abre o dashboard; funcionário vai direto para Nova Venda.
     window.location.href = ["ADMIN", "GERENTE"].includes(String(data.perfil).toUpperCase()) ? "dashboard.html" : "nova-venda.html";
-  } catch {
+  } catch (error) {
+    console.error("Erro na requisição:", error); // Adicionado log para ajudar em futuros debugs
     showInfo("Não foi possível conectar ao servidor.", "#b42318");
   } finally {
     submitButton.disabled = false;
@@ -80,7 +79,6 @@ document.querySelector("#access-link").addEventListener("click", (event) => {
   showInfo("A solicitação de acesso ainda não está disponível.");
 });
 
-// Avisos vindos de redirecionamentos: login.html?motivo=expirada | login | sair
 const MOTIVOS = {
   expirada: ["Sua sessão expirou. Entre novamente para continuar.", "#b42318"],
   login: ["Faça login para acessar o sistema.", "#52627d"],
@@ -94,5 +92,3 @@ function showInfo(message, color = "#52627d") {
   formMessage.style.color = color;
   formMessage.classList.add("visible");
 }
-
-
