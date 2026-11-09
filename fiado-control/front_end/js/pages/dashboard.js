@@ -38,10 +38,16 @@
 })();
 
 
+// Cabeçalho com o token da sessão (guardado no login).
+function cabecalhoAuth(){
+  const token=sessionStorage.getItem("token")
+  return token ? {"Accept":"application/json","Authorization":`Bearer ${token}`} : {"Accept":"application/json"}
+}
+
 //conectar o front com backend
 async function carregarCliente(){
   try {
-    const resposta=await fetch("http://localhost:8001/api/clientes")
+    const resposta=await fetch("http://localhost:8001/api/clientes",{headers:cabecalhoAuth()})
     if(!resposta.ok){
        throw new Error("Erro ao consultar o backend")
     }
@@ -56,7 +62,7 @@ carregarCliente()
 
 async function carregarVendas(){
   try {
-    const resposta=await fetch("http://localhost:8001/api/vendas")
+    const resposta=await fetch("http://localhost:8001/api/vendas",{headers:cabecalhoAuth()})
 
     if(!resposta.ok){
         throw new Error("Erro ao consultar o backeend")
@@ -96,21 +102,24 @@ async function carregarDashboard() {
   const tabela=document.getElementById("installment-rows")
 
   try {
+    const token=sessionStorage.getItem("token")
     const resposta = await fetch(
   "http://localhost:8001/api/dashboard?periodo=mes",
   {
     method: "GET",
     headers: {
-      "Accept": "application/json"
+      "Accept": "application/json",
+      "Authorization": `Bearer ${token}`
     }
   }
 )
 
     if(resposta.status===401){
-       throw new Error("Autenticação necessária para acessar o dashboard.")
+       if(window.FC&&FC.auth) FC.auth.sessaoExpirada()
+       throw new Error("Sua sessão expirou. Entre novamente.")
     }
     if(resposta.status===403){
-        throw new Error("Apenas o gerente pode acessar o dashboard.")
+        throw new Error("Você não tem permissão para acessar o dashboard.")
     }
     if(!resposta.ok){
         throw new Error("Erro ao consultar os dados do dashboard.")
@@ -183,3 +192,4 @@ async function carregarDashboard() {
 }
 
 carregarDashboard()
+// Nome e perfil do usuário são preenchidos por js/shared/auth.js em todas as páginas.

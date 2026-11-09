@@ -95,20 +95,31 @@
 
   async function listarClientes() {
     const dados = await request("/clientes");
-    const store = lerStore();
-    const excluidos = new Set(store.excluidos.map(String));
-    const doServidor = dados.filter((c) => !excluidos.has(String(c.id_cliente))).map((c) => normalizarCliente(c, store));
-
-    // Clientes criados só localmente deixam de existir aqui quando o servidor passa a tê-los.
-    const cpfsServidor = new Set(doServidor.map((c) => c.cpf));
-    const locais = store.clientes.filter((c) => !cpfsServidor.has(c.cpf));
-    if (locais.length !== store.clientes.length) {
-      store.clientes = locais;
-      salvarStore(store);
+    if(!Array.isArray(dados)){
+      throw new Error("Resposta inválida da API de clientes")
     }
 
-    return [...doServidor, ...locais.map((c) => ({ ...c, local: true }))].filter((c) => c.ativo);
+    return dados
+    .map((c) => ({
+      id: c.id_cliente,
+      nome: c.nome,
+      cpf: apenasDigitos(c.cpf),
+      telefone: (Array.isArray(c.telefone)
+        ? c.telefone
+        : [c.telefone]
+      ).filter(Boolean).map(apenasDigitos),
+      endereco: c.endereco ?? null,
+      limite_credito: Number(c.limite_credito) || 0,
+      credito_bloqueado: !!c.credito_bloqueado,
+      ativo: c.ativo !== false,
+      local: false
+    }))
+    .filter((c) => c.ativo);
   }
+
+
+
+
 
   async function obterCliente(id) {
     const store = lerStore();
@@ -678,8 +689,14 @@
     return `O back-end ainda não possui estas rotas: ${itens.join(", ")}. Esses dados estão sendo calculados e guardados neste navegador até a integração ser concluída.`;
   }
 
+  // Itens e total de uma venda (o back-end só guarda o total; os itens ficam neste navegador).
+  function itensDaVenda(idVenda) {
+    const v = lerStore().vendas.find((x) => String(x.id_venda) === String(idVenda));
+    return v ? { itens: v.itens || [], valor_total: v.valor_total, data: v.data } : null;
+  }
+
   FC.clientes = {
-    listarClientes, obterCliente, obterResumo, obterResumos, obterHistorico, obterParcelasAbertas,
+    itensDaVenda, listarClientes, obterCliente, obterResumo, obterResumos, obterHistorico, obterParcelasAbertas,
     registrarPagamento, alterarLimite, cadastrarCliente, avisoLocal,
     editarCliente, excluirCliente, registrarVenda, registrarBaixa, somarMeses,
     listarAlteracoesLimite, listarExcecoes, decidirExcecao, listarDecisoesExcecao, MOTIVOS_EXCECAO,

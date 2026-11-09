@@ -24,10 +24,29 @@
 
   let origemConfiguracoes = "default";
 
-  function mostrarStatus(elemento, mensagem, erro = false) {
-    elemento.textContent = mensagem;
+  // Estados da tela: carregando (com indicador), erro (com "Tentar novamente") ou aviso simples.
+  function mostrarStatus(elemento, mensagem, erro = false, { carregando = false, tentar = false } = {}) {
+    elemento.replaceChildren();
     elemento.hidden = !mensagem;
     elemento.classList.toggle("error", erro);
+    if (!mensagem) return;
+
+    if (carregando) {
+      const giro = document.createElement("span");
+      giro.className = "status-spinner";
+      giro.setAttribute("aria-hidden", "true");
+      elemento.appendChild(giro);
+    }
+    elemento.appendChild(document.createTextNode(mensagem));
+
+    if (tentar) {
+      const botao = document.createElement("button");
+      botao.type = "button";
+      botao.className = "status-retry";
+      botao.textContent = "Tentar novamente";
+      botao.addEventListener("click", carregarConfiguracoes);
+      elemento.appendChild(botao);
+    }
   }
 
   function lerConfiguracoesLocais() {
@@ -91,6 +110,12 @@
       return;
     }
 
+    // Estado de carregando: formulário bloqueado até a resposta chegar.
+    mostrarStatus(status, "Carregando configurações…", false, { carregando: true });
+    saveStatus.textContent = "Carregando configurações…";
+    form.classList.add("is-loading");
+    saveButton.disabled = true;
+
     try {
       // CONTRATO BACKEND: implementar GET /api/configuracoes/ lendo as configurações no banco.
       // A resposta deve conter os campos definidos em DEFAULT_SETTINGS (ou { configuracoes: {...} }).
@@ -113,8 +138,12 @@
         return;
       }
 
-      mostrarStatus(status, `${erro?.mensagem || "Não foi possível consultar o backend."} Os valores locais, quando existentes, foram mantidos.`, true);
+      const texto = erro?.rede ? "Não foi possível conectar ao servidor." : (erro?.mensagem || "Não foi possível consultar o backend.");
+      mostrarStatus(status, `${texto} Os valores locais, quando existentes, foram mantidos.`, true, { tentar: true });
       saveStatus.textContent = "Confirme a conexão com o backend antes de salvar.";
+    } finally {
+      form.classList.remove("is-loading");
+      saveButton.disabled = false;
     }
   }
 
@@ -135,8 +164,13 @@
     aba.addEventListener("click", () => ativarAba(aba));
   });
 
+  // Links vindos da aba "Usuários" (usuarios.html) abrem a aba pedida: configuracoes.html#vendas
+  const abaDoLink = tabs.find((aba) => aba.dataset.tab === location.hash.slice(1));
+  if (abaDoLink) ativarAba(abaDoLink);
+
   form.addEventListener("submit", async (evento) => {
     evento.preventDefault();
+    if (saveButton.disabled) return; // evita envio duplicado
     if (!form.reportValidity()) return;
 
     const payload = coletarFormulario();

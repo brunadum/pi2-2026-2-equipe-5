@@ -3,6 +3,8 @@ const togglePasswordButton = document.querySelector("#toggle-password");
 const loginForm = document.querySelector("#login-form");
 const usernameInput = document.querySelector("#username");
 const formMessage = document.querySelector("#form-message");
+const submitButton = loginForm.querySelector('button[type="submit"]');
+const API_BASE_URL = (window.FC_CONFIG?.API_BASE_URL || "http://localhost:8001/api").replace(/\/$/, "");
 
 togglePasswordButton.addEventListener("click", () => {
   const showingPassword = passwordInput.type === "text";
@@ -24,42 +26,47 @@ loginForm.addEventListener("submit", async (event) => {
   const password = passwordInput.value;
 
   if (!username || !password) {
-    formMessage.textContent = "Preencha o nome do usuário e a senha.";
-    formMessage.style.color = "#b42318";
-    formMessage.classList.add("visible");
+    showInfo("Preencha o email e a senha.", "#b42318");
     return;
   }
 
-  //conexão front end e back end
+  // Evita duplo clique: só uma requisição de login por vez.
+  if (submitButton.disabled) return;
+  submitButton.disabled = true;
+  submitButton.textContent = "Entrando…";
 
   try {
-    const response = await fetch("http://localhost:8001/api/login/", {
+    const response = await fetch(`${API_BASE_URL}/login/`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        email: username,
-        senha: password,
-      }),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: username, senha: password }),
     });
 
-    const data = await response.json();
-    console.log("Status HTTP:", response.status);
-    console.log("Resposta da API:", data);
+    let data = {};
+    try { data = await response.json(); } catch { /* corpo não-JSON */ }
+
     if (!response.ok) {
-      showInfo(data.erro || "Usuário ou senha inválidos.", "#b42318");
+      // Mensagem única para credencial inválida: não revela se o usuário ou a senha está errado.
+      showInfo(response.status === 401 ? "Usuário ou senha inválidos." : (data.erro || "Não foi possível entrar."), "#b42318");
       return;
     }
 
-    if (data.mensagem === "Login realizado com sucesso" && data.usuario) {
-      window.location.href = "dashboard.html";
-    } else {
-      showInfo("E-mail ou senha inválidos.", "#b42318");
+    if (!data.token || !data.perfil || !data.nome) {
+      showInfo("Resposta incompleta do servidor.", "#b42318");
+      return;
     }
-  } catch (error) {
+
+    sessionStorage.setItem("token", data.token);
+    sessionStorage.setItem("perfil", data.perfil);
+    sessionStorage.setItem("nome", data.nome);
+
+    // Gerente abre o dashboard; funcionário vai direto para Nova Venda.
+    window.location.href = ["ADMIN", "GERENTE"].includes(String(data.perfil).toUpperCase()) ? "dashboard.html" : "nova-venda.html";
+  } catch {
     showInfo("Não foi possível conectar ao servidor.", "#b42318");
-    console.error("Erro no login:", error);
+  } finally {
+    submitButton.disabled = false;
+    submitButton.textContent = "Entrar";
   }
 });
 
@@ -73,8 +80,19 @@ document.querySelector("#access-link").addEventListener("click", (event) => {
   showInfo("A solicitação de acesso ainda não está disponível.");
 });
 
+// Avisos vindos de redirecionamentos: login.html?motivo=expirada | login | sair
+const MOTIVOS = {
+  expirada: ["Sua sessão expirou. Entre novamente para continuar.", "#b42318"],
+  login: ["Faça login para acessar o sistema.", "#52627d"],
+  sair: ["Você saiu do sistema com segurança.", "#0b9d4b"],
+};
+const motivo = MOTIVOS[new URLSearchParams(location.search).get("motivo")];
+if (motivo) showInfo(motivo[0], motivo[1]);
+
 function showInfo(message, color = "#52627d") {
   formMessage.textContent = message;
   formMessage.style.color = color;
   formMessage.classList.add("visible");
 }
+
+

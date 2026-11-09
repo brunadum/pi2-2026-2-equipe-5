@@ -85,7 +85,7 @@
   }
 
   // Diálogo de confirmação. Retorna Promise<boolean>.
-  function confirmar({ titulo, mensagem, rotuloConfirmar = "Confirmar", perigo = false }) {
+  function confirmar({ titulo, mensagem, rotuloConfirmar = "Confirmar", rotuloCancelar = "Cancelar", perigo = false }) {
     return new Promise((resolve) => {
       const overlay = document.createElement("div");
       overlay.className = "modal-overlay";
@@ -95,12 +95,13 @@
         <h2 id="conf-titulo" style="margin:0 0 8px;font-size:16px;color:var(--ink)"></h2>
         <p class="confirm-text" id="conf-msg"></p>
         <footer class="modal-footer">
-          <button type="button" class="btn btn-outline" data-close-modal>Cancelar</button>
+          <button type="button" class="btn btn-outline" data-close-modal data-cancelar></button>
           <button type="button" class="btn ${perigo ? "btn-danger" : "btn-primary"}" data-confirmar data-autofocus></button>
         </footer></div>`;
       overlay.querySelector("#conf-titulo").textContent = titulo;
       overlay.querySelector("#conf-msg").textContent = mensagem;
       overlay.querySelector("[data-confirmar]").textContent = rotuloConfirmar;
+      overlay.querySelector("[data-cancelar]").textContent = rotuloCancelar;
       document.body.appendChild(overlay);
 
       let resultado = false;

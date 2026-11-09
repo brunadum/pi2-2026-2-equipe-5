@@ -301,6 +301,36 @@
   }
   el.form.addEventListener("submit", enviar);
 
+  // Monta e guarda o comprovante da baixa (state.parcelas já foi recarregada: só tem parcelas em aberto).
+  function guardarComprovante(cliente, resultado, valor, forma) {
+    const abertas = state.parcelas;
+    const vendas = [];
+    resultado.pagamentos.forEach((p) => {
+      const id = p.parcela.id_venda;
+      if (vendas.some((v) => String(v.idVenda) === String(id))) return;
+      const total = p.parcela.total_parcelas || p.parcela.numero;
+      const restantes = abertas.filter((a) => String(a.id_venda) === String(id)).length;
+      const extra = FC.clientes.itensDaVenda(id);
+      vendas.push({ idVenda: id, total_parcelas: total, restantes, pagas: Math.max(0, total - restantes), itens: extra?.itens || [], valor_total: extra?.valor_total || 0, data: extra?.data || "" });
+    });
+    const ultima = resultado.pagamentos[resultado.pagamentos.length - 1]?.resposta || {};
+    return FC.comprovantes.salvar({
+      id: `pag-${Date.now()}`,
+      tipo: "pagamento",
+      numero: ultima.id_pagamento ?? Date.now() % 1000000,
+      cliente: { id: cliente.id, nome: cliente.nome, cpf: cliente.cpf, telefone: cliente.telefone },
+      forma: FORMAS[forma],
+      valorTotal: valor,
+      linhas: resultado.pagamentos.map((p) => ({
+        idVenda: p.parcela.id_venda, numero: p.parcela.numero, total: p.parcela.total_parcelas || p.parcela.numero,
+        vencimento: p.parcela.data_vencimento, valor: p.valor,
+        quitada: (p.resposta.status_parcela || "") === "pago", saldoParcela: Number(p.resposta.saldo_parcela) || 0,
+      })),
+      vendas,
+      saldoRestante: arredondar(abertas.reduce((s, a) => s + a.devido, 0)),
+    });
+  }
+
   async function concluir(resultado, valor, forma) {
     const cliente = state.cliente;
     const linhas = resultado.pagamentos.map((p) => {
@@ -327,6 +357,18 @@
     recibo.innerHTML = `<p><strong>${moeda(valor)}</strong> recebido via ${escapeHtml(FORMAS[forma])}</p><ul>${linhas}</ul>
       <button class="btn btn-outline btn-sm btn-block" id="btn-outra-baixa" type="button">Registrar outra baixa</button>`;
     el.form.insertBefore(recibo, el.alerta);
+    const ref = guardarComprovante(cliente, resultado, valor, forma);
+    const verComp = document.createElement("button");
+    verComp.type = "button";
+    verComp.className = "btn btn-primary btn-sm btn-block";
+    verComp.textContent = "Ver / imprimir comprovante";
+    verComp.addEventListener("click", () => FC.comprovantes.abrir(ref.url));
+    recibo.insertBefore(verComp, $("btn-outra-baixa"));
+    FC.comprovantes.perguntarImpressao({
+      titulo: "Imprimir comprovante?",
+      mensagem: `O pagamento de ${moeda(valor)} de ${cliente.nome} foi registrado. Deseja imprimir o comprovante da baixa?`,
+      url: ref.url,
+    });
     $("btn-outra-baixa").addEventListener("click", () => { limparConclusao(); carregarParcelas(cliente); });
     renderTudo();
     el.confirmar.disabled = true;

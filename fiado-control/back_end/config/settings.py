@@ -53,6 +53,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'core.middleware.JWTAuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -155,3 +156,9 @@ CORS_ALLOWED_ORIGINS = [
     'http://127.0.0.1:5500',
     'http://localhost:5500',
 ]
+
+# Desenvolvimento: libera o acesso pela rede local (ex.: celular abrindo http://<IP-do-PC>).
+# Em produção (DEBUG=False) valem apenas as origens e hosts listados acima.
+if DEBUG:
+    CORS_ALLOW_ALL_ORIGINS = True
+    ALLOWED_HOSTS = ['*']

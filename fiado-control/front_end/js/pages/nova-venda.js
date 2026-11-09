@@ -472,6 +472,35 @@
     el.busca.focus();
   }
 
+  // Guarda o comprovante da venda, cria o botão "Ver comprovante" e pergunta se deseja imprimir.
+  function oferecerComprovante(venda, dados) {
+    const { subtotal, desconto, total } = totais();
+    const cli = state.cliente;
+    const n = numeroDeParcelas();
+    const ref = FC.comprovantes.salvar({
+      id: `venda-${venda.id_venda}`,
+      tipo: "venda",
+      numero: venda.numero,
+      cliente: { id: cli.id, nome: cli.nome, cpf: cli.cpf, telefone: cli.telefone },
+      itens: state.itens.map((i) => ({ nome: i.nome, qtd: i.qtd, preco: i.preco })),
+      subtotal, desconto, total,
+      tipoVenda: dados.tipo,
+      nParcelas: n,
+      parcelas: (venda.parcelas || []).map((p) => ({ numero: p.numero, valor: p.valor_parcela, vencimento: p.data_vencimento })),
+    });
+    const botao = document.createElement("button");
+    botao.type = "button";
+    botao.className = "btn btn-outline";
+    botao.textContent = "Ver comprovante";
+    botao.addEventListener("click", () => FC.comprovantes.abrir(ref.url));
+    $("btn-nova").before(botao);
+    FC.comprovantes.perguntarImpressao({
+      titulo: "Imprimir comprovante?",
+      mensagem: `A venda Nº ${pad(venda.numero)} de ${dados.cliente} foi registrada. Deseja imprimir o comprovante da compra?`,
+      url: ref.url,
+    });
+  }
+
   async function enviar(evento) {
     evento.preventDefault();
     if (state.enviando || el.registrar.disabled) return;
@@ -497,6 +526,7 @@
       state.enviando = false;
       el.registrar.classList.remove("is-loading");
       mostrarSucesso(venda, dados);
+      oferecerComprovante(venda, dados);
     } catch (e) {
       state.enviando = false;
       el.registrar.classList.remove("is-loading");

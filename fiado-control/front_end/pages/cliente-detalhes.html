@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="../css/layout.css">
   <link rel="stylesheet" href="../css/components.css">
   <link rel="stylesheet" href="../css/pages/cliente-detalhes.css">
+  <script src="../js/shared/auth.js"></script>
 </head>
 <body class="app-page">
   <div class="app-shell">
@@ -92,7 +93,7 @@
           <button class="btn btn-success" type="button" id="btn-pagamento" disabled>
             <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/></svg>Registrar pagamento
           </button>
-          <a class="btn btn-outline" id="btn-limite-aprovacao" href="cliente-limite.html">
+          <a class="btn btn-outline" id="btn-limite-aprovacao" data-somente="gerente" href="cliente-limite.html">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 17a8 8 0 1 1 15 0"/><path d="m12 13 3.5-4"/><circle cx="12" cy="13.5" r="1"/></svg>Limite e aprovações
           </a>
           <button class="btn btn-outline" type="button" id="btn-limite" disabled>
