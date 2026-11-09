@@ -3,6 +3,8 @@ const togglePasswordButton = document.querySelector("#toggle-password");
 const loginForm = document.querySelector("#login-form");
 const usernameInput = document.querySelector("#username");
 const formMessage = document.querySelector("#form-message");
+const submitButton = loginForm.querySelector('button[type="submit"]');
+const API_BASE_URL = (window.FC_CONFIG?.API_BASE_URL || "http://localhost:8001/api").replace(/\/$/, "");
 
 togglePasswordButton.addEventListener("click", () => {
   const showingPassword = passwordInput.type === "text";
@@ -24,50 +26,47 @@ loginForm.addEventListener("submit", async (event) => {
   const password = passwordInput.value;
 
   if (!username || !password) {
-    formMessage.textContent = "Preencha o email e a senha.";
-    formMessage.style.color = "#b42318";
-    formMessage.classList.add("visible");
+    showInfo("Preencha o email e a senha.", "#b42318");
     return;
   }
 
-  //conexão front end e back end
+  // Evita duplo clique: só uma requisição de login por vez.
+  if (submitButton.disabled) return;
+  submitButton.disabled = true;
+  submitButton.textContent = "Entrando…";
 
   try {
-    const response = await fetch("http://localhost:8001/api/login/", {
+    const response = await fetch(`${API_BASE_URL}/login/`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        email: username,
-        senha: password,
-      }),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: username, senha: password }),
     });
 
-    const data = await response.json();
+    let data = {};
+    try { data = await response.json(); } catch { /* corpo não-JSON */ }
 
-console.log("Status HTTP:", response.status);
-console.log("Nome recebido da API:", data.nome);
+    if (!response.ok) {
+      // Mensagem única para credencial inválida: não revela se o usuário ou a senha está errado.
+      showInfo(response.status === 401 ? "Usuário ou senha inválidos." : (data.erro || "Não foi possível entrar."), "#b42318");
+      return;
+    }
 
-if (!response.ok) {
-    // Mensagem única para credencial inválida: não revela se o usuário ou a senha está errado.
-    showInfo(response.status === 401 ? "Usuário ou senha inválidos." : (data.erro || "Não foi possível entrar."), "#b42318");
-    return;
-}
+    if (!data.token || !data.perfil || !data.nome) {
+      showInfo("Resposta incompleta do servidor.", "#b42318");
+      return;
+    }
 
-if (data.token && data.perfil && data.nome) {
     sessionStorage.setItem("token", data.token);
     sessionStorage.setItem("perfil", data.perfil);
     sessionStorage.setItem("nome", data.nome);
 
     // Gerente abre o dashboard; funcionário vai direto para Nova Venda.
     window.location.href = ["ADMIN", "GERENTE"].includes(String(data.perfil).toUpperCase()) ? "dashboard.html" : "nova-venda.html";
-} else {
-    showInfo("Resposta incompleta do servidor.", "#b42318");
-}
-  } catch (error) {
+  } catch {
     showInfo("Não foi possível conectar ao servidor.", "#b42318");
-    console.error("Erro no login:", error);
+  } finally {
+    submitButton.disabled = false;
+    submitButton.textContent = "Entrar";
   }
 });
 

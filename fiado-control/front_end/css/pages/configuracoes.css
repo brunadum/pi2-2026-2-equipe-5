@@ -14,6 +14,47 @@
   display: none;
 }
 
+/* Estados de tela: carregando e erro com "Tentar novamente". */
+.settings-status:not([hidden]) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid #c9d6ea;
+  border-top-color: #2563eb;
+  border-radius: 50%;
+  animation: status-giro 0.8s linear infinite;
+}
+
+@keyframes status-giro {
+  to { transform: rotate(360deg); }
+}
+
+.status-retry {
+  padding: 5px 12px;
+  border: 1px solid currentColor;
+  border-radius: 8px;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.status-retry:hover {
+  background: rgba(180, 35, 24, 0.08);
+}
+
+#settings-form.is-loading {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
 .settings-tabs {
   display: flex;
   gap: 4px;

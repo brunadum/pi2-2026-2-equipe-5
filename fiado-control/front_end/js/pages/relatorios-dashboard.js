@@ -47,10 +47,36 @@
     return null;
   }
 
-  function mostrarStatus(mensagem, erro = false) {
-    status.textContent = mensagem;
+  // Estados da tela: carregando (com indicador), erro (com "Tentar novamente") ou aviso simples.
+  function mostrarStatus(mensagem, erro = false, { carregando = false, tentar = false } = {}) {
+    status.replaceChildren();
     status.hidden = !mensagem;
     status.classList.toggle("error", erro);
+    status.classList.toggle("is-loading", carregando);
+    if (!mensagem) return;
+
+    if (carregando) {
+      const giro = document.createElement("span");
+      giro.className = "status-spinner";
+      giro.setAttribute("aria-hidden", "true");
+      status.appendChild(giro);
+    }
+    status.appendChild(document.createTextNode(mensagem));
+
+    if (tentar) {
+      const botao = document.createElement("button");
+      botao.type = "button";
+      botao.className = "status-retry";
+      botao.textContent = "Tentar novamente";
+      botao.addEventListener("click", carregar);
+      status.appendChild(botao);
+    }
+  }
+
+  function mensagemDeErro(erro) {
+    if (erro?.rede) return "Não foi possível conectar ao servidor.";
+    if (erro?.status === 403) return "Você não tem permissão para ver estes relatórios.";
+    return erro?.mensagem || "Não foi possível carregar os dados financeiros.";
   }
 
   function valorParcela(parcela) {
@@ -167,15 +193,19 @@
     const area = $("grafico");
     area.replaceChildren();
 
-    if (!semanas.length) {
+    const valores = semanas.map((semana) => numero(primeiroValor(semana, ["valor", "faturamento", "total"])));
+
+    // Estado vazio: sem semanas ou todas zeradas.
+    if (!semanas.length || valores.every((v) => v === 0)) {
       const mensagem = document.createElement("p");
       mensagem.className = "empty-state";
-      mensagem.textContent = "A API ainda não fornece dados para o gráfico semanal.";
+      mensagem.textContent = Array.isArray(vendas) || semanas.length
+        ? "Nenhuma venda registrada nas últimas 4 semanas."
+        : "Não foi possível obter os dados do gráfico semanal.";
       area.appendChild(mensagem);
       return;
     }
 
-    const valores = semanas.map((semana) => numero(primeiroValor(semana, ["valor", "faturamento", "total"])));
     const maiorValor = Math.max(...valores, 1);
 
     semanas.forEach((semana, indice) => {
@@ -240,10 +270,26 @@
     desenharGrafico(semanasApi?.length ? semanasApi : semanasDerivadasDasVendas());
 
     const avisos = [];
-    if (erroDashboard) avisos.push("Não foi possível consultar todos os indicadores de /api/dashboard/.");
-    if (recebido === null) avisos.push("O total recebido depende de um campo no dashboard ou da rota GET /api/pagamentos.");
-    if (!semanasApi && !Array.isArray(vendas)) avisos.push("O gráfico semanal depende de faturamento_semanal ou da listagem de vendas.");
-    mostrarStatus(avisos.join(" "), Boolean(erroDashboard));
+    if (erroDashboard) avisos.push(`${mensagemDeErro(erroDashboard)} Alguns indicadores podem estar incompletos.`);
+    if (recebido === null) avisos.push("O total recebido ainda não está disponível.");
+    mostrarStatus(avisos.join(" "), Boolean(erroDashboard), { tentar: Boolean(erroDashboard) });
+  }
+
+  function mostrarCarregando() {
+    ["faturamento", "recebido", "inadimplencia", "taxa-atraso"].forEach((id) => { $(id).textContent = "…"; });
+    const area = $("grafico");
+    area.replaceChildren();
+    const msg = document.createElement("p");
+    msg.className = "empty-state";
+    msg.textContent = "Carregando gráfico…";
+    area.appendChild(msg);
+    mostrarStatus("Carregando dados financeiros…", false, { carregando: true });
+  }
+
+  function mostrarErroTotal(erro) {
+    ["faturamento", "recebido", "inadimplencia", "taxa-atraso"].forEach((id) => { $(id).textContent = "—"; });
+    $("grafico").replaceChildren();
+    mostrarStatus(mensagemDeErro(erro), true, { tentar: true });
   }
 
   async function carregar() {
@@ -252,7 +298,7 @@
       return;
     }
 
-    mostrarStatus("Carregando dados financeiros…");
+    mostrarCarregando();
     const [resultadoDashboard, resultadoVendas, resultadoPagamentos] = await Promise.allSettled([
       // CONTRATO BACKEND: GET /api/dashboard/?periodo=dia|semana|mes.
       api.request(`/dashboard/?periodo=${encodeURIComponent(periodo.value)}`),
@@ -282,6 +328,12 @@
     } else {
       pagamentos = null;
       erroPagamentos = resultadoPagamentos.reason;
+    }
+
+    // Estado de erro: nenhuma das rotas respondeu (ex.: servidor desligado).
+    if (resultadoDashboard.status === "rejected" && resultadoVendas.status === "rejected") {
+      mostrarErroTotal(resultadoDashboard.reason);
+      return;
     }
 
     desenharIndicadores();
