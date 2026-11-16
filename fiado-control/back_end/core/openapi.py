@@ -85,7 +85,8 @@ SCHEMAS = {
     }),
     'VendaRejeitada': objeto({'id_venda': ID, 'status': {'type': 'string', 'enum': ['rejeitada']},
                              'motivo': {'type': 'string', 'enum': ['credito_bloqueado', 'parcelas_em_atraso', 'limite_credito_excedido']}}),
-    'PagamentoEntrada': objeto({'id_parcela': IDENTIFICADOR_ENTRADA, 'valor_recebido': POSITIVO}),
+    'PagamentoEntrada': objeto({'id_parcela': IDENTIFICADOR_ENTRADA, 'valor_recebido': POSITIVO,
+                               'forma_pagamento': {'type': 'string', 'enum': ['dinheiro', 'pix', 'cartao_credito', 'cartao_debito', 'outro']}}, ['id_parcela', 'valor_recebido']),
     'PagamentoCriado': objeto({
         'id_pagamento': ID, 'id_parcela': ID, 'valor_recebido': VALOR,
         'data_pagamento': DATA, 'status_parcela': {'type': 'string', 'enum': ['pago', 'parcial']},
@@ -93,7 +94,10 @@ SCHEMAS = {
     }),
     'Dashboard': objeto({
         'periodo': {'type': 'string', 'enum': ['dia', 'semana', 'mes']},
-        'faturamento_total': VALOR, 'total_a_receber': VALOR,
+        'faturamento_total': VALOR, 'total_a_receber': VALOR, 'total_recebido': VALOR,
+        'total_vencido': VALOR, 'taxa_atraso': {'type': 'number', 'minimum': 0, 'maximum': 100},
+        'clientes_inadimplentes': {'type': 'integer', 'minimum': 0},
+        'faturamento_semanal': lista(objeto({'rotulo': TEXTO, 'valor': VALOR, 'recebido': VALOR})),
         'taxa_inadimplencia': {'type': 'number', 'minimum': 0, 'maximum': 1},
         'parcelas_vencidas': lista(PARCELA_DASHBOARD), 'parcelas_a_vencer': lista(PARCELA_DASHBOARD),
     }),
@@ -103,6 +107,35 @@ SCHEMAS = {
     # O login legado ainda não usa o envelope padronizado de erro.
     'ErroLoginAtual': objeto({'erro': TEXTO}),
 }
+
+TAXA = {'type': 'number', 'minimum': 0, 'maximum': 1, 'multipleOf': 0.0001}
+SCHEMAS.update({
+    'ConfiguracaoEntrada': objeto({'taxa_juros': TAXA, 'taxa_multa': TAXA}),
+    'Configuracao': objeto({'id_configuracao': ID, 'taxa_juros': TAXA, 'taxa_multa': TAXA, 'definido_por': ID}),
+    'Recebimento': objeto({'id_pagamento': ID, 'id_parcela': ID, 'id_venda': ID, 'id_cliente': ID,
+                           'nome_cliente': TEXTO, 'valor_recebido': VALOR, 'valor_juros': VALOR,
+                           'valor_multa': VALOR, 'data_pagamento': DATA,
+                           'id_usuario': {'type': 'integer', 'nullable': True},
+                           'forma_pagamento': {'type': 'string', 'nullable': True}}),
+    'Produto': objeto({'id': ID, 'nome': TEXTO, 'preco': VALOR, 'quantidade_estoque': {'type': 'integer'}}),
+    'ProdutoEntrada': objeto({'nome': {'type': 'string', 'minLength': 1, 'maxLength': 150}, 'preco': POSITIVO}),
+    'DescontoEntrada': objeto({'valor_desconto': POSITIVO, 'motivo': {'type': 'string', 'minLength': 1, 'maxLength': 200}}),
+    'Desconto': objeto({'id_desconto': {'type': 'integer'}, 'id_parcela': ID, 'valor_desconto': VALOR,
+                        'valor_devido_atualizado': VALOR, 'saldo_devedor_cliente': VALOR}),
+})
+PERCENTUAL = {'type': 'number', 'minimum': 0, 'maximum': 100, 'multipleOf': 0.01}
+SISTEMA = {
+    'multa_diaria_percentual': PERCENTUAL, 'juros_mensais_percentual': PERCENTUAL,
+    'desconto_maximo_percentual': PERCENTUAL,
+    'limite_padrao_cliente': {'type': 'number', 'minimum': 0, 'maximum': 99999999.99, 'multipleOf': 0.01},
+    'bloquear_vendas_atraso': BOOLEANO, 'permitir_cliente_sem_cpf': BOOLEANO,
+    'exigir_senha_venda': BOOLEANO, 'permitir_venda_parcial': BOOLEANO,
+    'operador_cadastrar_cliente': BOOLEANO, 'operador_registrar_pagamento': BOOLEANO,
+    'restringir_relatorios_admin': BOOLEANO,
+}
+SCHEMAS['SistemaEntrada'] = {'anyOf': [objeto(SISTEMA), ref('ConfiguracaoEntrada')]}
+SCHEMAS['Sistema'] = objeto({**SCHEMAS['Configuracao']['properties'], **SISTEMA,
+                             'modo_cobranca': {'type': 'string', 'enum': ['unica', 'mensal_diaria']}})
 
 
 def resposta(schema, descricao):
@@ -214,13 +247,77 @@ PATHS = {
 PATHS['/vendas']['post']['responses']['422'] = resposta(
     {'oneOf': [ref('Erro'), ref('VendaRejeitada')]},
     'vencimento_invalido ou rejeição por credito_bloqueado, parcelas_em_atraso, limite_credito_excedido')
+
+FILTROS_FINANCEIROS = [
+    parametro('periodo', {'type': 'string', 'enum': ['dia', 'semana', 'mes']}),
+    parametro('data_inicio', DATA), parametro('data_fim', DATA), parametro('id_cliente', ID),
+]
+ERROS_FINANCEIROS = [(400, 'campo_invalido ou periodo_invalido'), (401, 'nao_autenticado'), (403, 'acesso_negado')]
+PATHS['/pagamentos']['get'] = operacao(
+    'listarRecebimentos', 'Listar recebimentos efetivos', 'RF05', lista(ref('Recebimento')),
+    parametros=FILTROS_FINANCEIROS, erros=ERROS_FINANCEIROS, autenticada=True,
+    descricao='Somente gerente. Cada registro é um recebimento; id_pagamento identifica recebimento e id_parcela identifica a parcela. Descontos não são recebimentos.')
+PATHS['/configuracoes/cobranca'] = {
+    'get': operacao('consultarConfiguracao', 'Consultar taxas de cobrança', 'RF10', ref('Configuracao'),
+                    autenticada=True, erros=[*ERROS_FINANCEIROS, (404, 'configuracao_nao_encontrada')],
+                    descricao='Somente gerente. Taxas em fração: 0.02 significa 2%. Alias /configuracoes/. Encargos aplicados uma vez à parcela vencida.'),
+    'put': operacao('alterarConfiguracao', 'Alterar taxas com auditoria', 'RF10', ref('Configuracao'),
+                    entrada='ConfiguracaoEntrada', autenticada=True,
+                    erros=[*ERROS_FINANCEIROS, (422, 'taxa_invalida')],
+                    descricao='Somente gerente. Autor vem do JWT, com auditoria transacional. Atualiza os saldos ainda abertos. Repetição sem mudança não gera evento.'),
+}
+PATHS['/configuracoes'] = {
+    'get': operacao('consultarConfiguracoesSistema', 'Consultar configuração compatível com a tela', 'RF10', ref('Sistema'),
+                    autenticada=True, erros=[*ERROS_FINANCEIROS, (404, 'configuracao_nao_encontrada')],
+                    descricao='Somente gerente. Retorna os onze campos usados pela tela original, as taxas em fração e o modo de cobrança atual. Nenhuma gravação ocorre no GET.'),
+    'put': operacao('alterarConfiguracoesSistema', 'Gravar configuração da tela e ativar juros mensais/multa diária', 'RF10', ref('Sistema'),
+                    entrada='SistemaEntrada', autenticada=True,
+                    erros=[*ERROS_FINANCEIROS, (422, 'configuracao_invalida ou politica_nao_disponivel')],
+                    descricao='Somente gerente. Juros simples proporcionais aos dias, mês de 30 dias, mais multa diária; principal amortizado deixa de gerar encargos a partir da data do abatimento. '
+                              'Valida e aplica limite padrão, desconto máximo, baixas parciais e permissões de operadores. '
+                              'Bloqueio por atraso e restrição financeira ao gerente são obrigatórios; CPF permanece obrigatório. Aprovação por senha não está disponível. '
+                              'Também aceita o payload legado taxa_juros/taxa_multa, preservando o modo atual.'),
+}
+PATHS['/produtos'] = {
+    'get': operacao('listarProdutos', 'Consultar catálogo compartilhado', 'RF01', lista(ref('Produto')),
+                    autenticada=True, erros=ERROS_FINANCEIROS),
+    'post': operacao('cadastrarProduto', 'Cadastrar produto', 'RF01', ref('Produto'),
+                     entrada='ProdutoEntrada', status='201', autenticada=True,
+                     erros=[*ERROS_FINANCEIROS, (409, 'produto_duplicado'), (422, 'valor_invalido')]),
+}
+PATHS['/produtos/{id_produto}'] = {
+    'put': operacao('alterarProduto', 'Alterar nome ou preço do produto', 'RF01', ref('Produto'),
+                    entrada='ProdutoEntrada', autenticada=True,
+                    parametros=[{'name': 'id_produto', 'in': 'path', 'required': True, 'schema': ID}],
+                    erros=[*ERROS_FINANCEIROS, (404, 'produto_nao_encontrado'), (409, 'produto_duplicado'), (422, 'valor_invalido')],
+                    descricao='Somente gerente.'),
+}
+PATHS['/pagamentos/{id_parcela}/desconto'] = {
+    'post': operacao('concederDesconto', 'Conceder desconto auditado à parcela', 'RF10', ref('Desconto'),
+                     entrada='DescontoEntrada', autenticada=True,
+                     parametros=[{'name': 'id_parcela', 'in': 'path', 'required': True, 'schema': ID}],
+                     erros=[*ERROS_FINANCEIROS, (404, 'parcela_nao_encontrada'), (422, 'desconto_invalido')],
+                     descricao='Somente gerente. O identificador no caminho é o da parcela. Atualiza dívida e auditoria na mesma transação; não soma desconto a recebimentos.'),
+}
+for tipo, schema in (('vendas', lista(ref('Venda'))), ('pagamentos', lista(ref('Recebimento'))),
+                     ('clientes', lista(ref('Cliente'))), ('financeiro', ref('Dashboard')),
+                     ('inadimplencia', lista(PARCELA_DASHBOARD))):
+    PATHS[f'/relatorios/{tipo}'] = {'get': operacao(
+        f'relatorio_{tipo}', f'Consultar relatório de {tipo}', 'RF12', schema,
+        parametros=FILTROS_FINANCEIROS, erros=ERROS_FINANCEIROS, autenticada=True,
+        descricao='Somente gerente. Vendas aprovadas e recebimentos são filtrados por período; clientes e inadimplência representam a posição atual.')}
+    exportacao = operacao(f'exportar_{tipo}', f'Exportar relatório de {tipo} em CSV', 'RF12', TEXTO,
+                         parametros=FILTROS_FINANCEIROS, erros=ERROS_FINANCEIROS, autenticada=True)
+    exportacao['responses']['200'] = {'description': 'CSV UTF-8 com BOM, separador ponto e vírgula e proteção contra fórmulas.',
+                                      'content': {'text/csv': {'schema': TEXTO}}}
+    PATHS[f'/relatorios/{tipo}/exportar'] = {'get': exportacao}
 for codigo in ('400', '401'):
     PATHS['/login/']['post']['responses'][codigo] = resposta(ref('ErroLoginAtual'), 'Dados ausentes/JSON inválido ou credenciais inválidas')
 PATHS['/login/']['post']['responses']['405'] = resposta(ref('ErroLoginAtual'), 'Método não permitido')
 
 SCHEMA = {
     'openapi': '3.0.3',
-    'info': {'title': 'Fiado Control — API', 'version': '0.4.0',
+    'info': {'title': 'Fiado Control — API', 'version': '0.5.1',
              'description': 'Somente operações implementadas. Login JWT em /login/. '
              'Crédito e dashboard exigem Bearer válido e verificam as permissões no banco. '
              'As demais operações ainda aguardam a proteção global por perfil.'},

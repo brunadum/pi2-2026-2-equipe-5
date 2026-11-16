@@ -40,51 +40,69 @@ def identificador(valor):
 
 
 def consultar_parcelas(id_cliente=None):
+    hoje = date.today()
     with connection.cursor() as cursor:
-        cursor.execute('SELECT taxa_juros, taxa_multa FROM configuracao ORDER BY id_configuracao DESC LIMIT 1')
-        juros, multa = cursor.fetchone() or (ZERO, ZERO)
+        cursor.execute('SELECT taxa_juros, taxa_multa, modo_cobranca FROM configuracao ORDER BY id_configuracao DESC LIMIT 1')
+        juros, multa, modo = cursor.fetchone() or (ZERO, ZERO, 'unica')
         cursor.execute("""
             SELECT p.id_pagamento, p.id_venda, v.id_cliente, c.nome,
                    p.valor_parcela, p.data_vencimento, p.status,
                    ROW_NUMBER() OVER (PARTITION BY p.id_venda ORDER BY p.data_vencimento, p.id_pagamento),
                    COALESCE(r.recebido, 0), COALESCE(r.principal, 0),
                    COALESCE(r.principal_ate_vencimento, 0),
-                   COALESCE(r.juros, 0), COALESCE(r.multa, 0)
+                   COALESCE(r.juros, 0), COALESCE(r.multa, 0), COALESCE(r.liquidado, 0),
+                   COALESCE(r.desconto, 0), COALESCE(r.principal_dias, 0)
             FROM pagamento p
             JOIN venda v ON v.id_venda = p.id_venda
             JOIN cliente c ON c.id_cliente = v.id_cliente
             LEFT JOIN (
-                SELECT r.id_pagamento, SUM(r.valor_recebido) AS recebido,
+                SELECT r.id_pagamento, COALESCE(SUM(r.valor_recebido) FILTER (WHERE NOT r.e_desconto), 0) AS recebido,
+                       SUM(r.valor_recebido) AS liquidado,
+                       COALESCE(SUM(r.valor_recebido) FILTER (WHERE r.e_desconto), 0) AS desconto,
                        SUM(r.valor_recebido - r.valor_juros - r.valor_multa) AS principal,
                        SUM(r.valor_recebido - r.valor_juros - r.valor_multa)
                            FILTER (WHERE r.data_pagamento <= p.data_vencimento) AS principal_ate_vencimento,
-                       SUM(r.valor_juros) AS juros, SUM(r.valor_multa) AS multa
-                FROM recebimento r JOIN pagamento p ON p.id_pagamento = r.id_pagamento
+                       SUM(r.valor_juros) AS juros, SUM(r.valor_multa) AS multa,
+                       SUM((r.valor_recebido-r.valor_juros-r.valor_multa) *
+                           GREATEST(%s::date-GREATEST(p.data_vencimento,r.data_pagamento),0)) AS principal_dias
+                FROM (
+                    SELECT id_pagamento, valor_recebido, valor_juros, valor_multa, data_pagamento, FALSE AS e_desconto FROM recebimento
+                    UNION ALL
+                    SELECT id_pagamento, valor_desconto, valor_juros, valor_multa, data_desconto, TRUE FROM desconto_parcela
+                ) r JOIN pagamento p ON p.id_pagamento = r.id_pagamento
                 GROUP BY r.id_pagamento
             ) r ON r.id_pagamento = p.id_pagamento
             WHERE v.status = 'aprovada' AND (%s::integer IS NULL OR v.id_cliente = %s)
             ORDER BY p.data_vencimento, p.id_pagamento
-        """, [id_cliente, id_cliente])
+        """, [hoje, id_cliente, id_cliente])
         registros = cursor.fetchall()
 
-    hoje = date.today()
     parcelas = []
-    for pid, vid, cid, nome, valor, vencimento, estado, numero, recebido, principal, antecipado, juros_pagos, multa_paga in registros:
+    for pid, vid, cid, nome, valor, vencimento, estado, numero, recebido, principal, antecipado, juros_pagos, multa_paga, liquidado, desconto, principal_dias in registros:
         saldo = max(ZERO, valor - principal)
         atrasada = vencimento < hoje
         base_encargos = max(ZERO, valor - antecipado)
-        juros_abertos = max(ZERO, dinheiro(base_encargos * juros) - juros_pagos) if atrasada else ZERO
-        multa_aberta = max(ZERO, dinheiro(base_encargos * multa) - multa_paga) if atrasada else ZERO
+        if modo == 'mensal_diaria':
+            # Juros simples: mês de 30 dias. Principal amortizado deixa de gerar
+            # encargos a partir da data de cada pagamento/desconto.
+            exposicao = max(ZERO, valor * max(0, (hoje-vencimento).days) - principal_dias)
+            juros_totais = dinheiro(exposicao * juros / 30)
+            multa_total = dinheiro(exposicao * multa)
+        else:
+            juros_totais = dinheiro(base_encargos * juros)
+            multa_total = dinheiro(base_encargos * multa)
+        juros_abertos = max(ZERO, juros_totais - juros_pagos) if atrasada else ZERO
+        multa_aberta = max(ZERO, multa_total - multa_paga) if atrasada else ZERO
         if estado == 'pago':
             # O seed possui parcelas quitadas anteriores à tabela de recebimentos.
             saldo = juros_abertos = multa_aberta = ZERO
-            recebido = recebido or valor
+            recebido = recebido or (valor if not liquidado else ZERO)
         atualizado = saldo + juros_abertos + multa_aberta
         status = ('pago' if atualizado == ZERO else 'atrasado' if atrasada
-                  else 'parcial' if recebido > ZERO else 'pendente')
+                  else 'parcial' if liquidado > ZERO else 'pendente')
         parcelas.append({
             'id_parcela': pid, 'id_venda': vid, 'id_cliente': cid, 'nome': nome,
-            'numero': numero, 'valor_parcela': valor, 'valor_pago': recebido,
+            'numero': numero, 'valor_parcela': valor, 'valor_pago': recebido, 'valor_desconto': desconto,
             'saldo_parcela': saldo, 'data_vencimento': vencimento.isoformat(),
             'status': status, 'dias_atraso': (hoje - vencimento).days if atrasada and status != 'pago' else 0,
             'juros': juros_abertos, 'multa': multa_aberta, 'valor_atualizado': atualizado,
