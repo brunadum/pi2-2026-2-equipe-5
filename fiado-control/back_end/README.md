@@ -278,3 +278,16 @@ computador utiliza `http://localhost:8001`.
 ## Status
 
 Backend inicializado e preparado para desenvolvimento da API.
+
+
+## Sprint 5 — configurações e relatórios
+
+A API 0.5.0 documenta 30 operações em OpenAPI. Acrescenta configurações auditadas, recebimentos com filtros/forma de pagamento, indicadores completos, relatórios JSON/CSV, catálogo compartilhado e desconto auditado de parcela.
+
+Depois de atualizar o código, aplique `python manage.py migrate` (ou `docker compose exec backend python manage.py migrate --noinput`). As migrações 0004 e 0005 são aditivas. Faça backup antes de atualizar uma base com dados a preservar.
+
+Swagger e OpenAPI estão em `http://localhost:8001/api/docs/` e `http://localhost:8001/api/openapi.json`. As telas originais foram preservadas. O serviço HTTP compartilhado recebeu apenas o envio do token existente em Bearer. As novas operações financeiras são exclusivas do gerente; catálogo permite consulta/cadastro autenticados e edição pelo gerente. A autorização global das operações legadas continua no escopo da issue #60.
+
+Contrato, testes, resultados e semântica de períodos/taxas estão em [sprint5-backend2.md](../../docs/api/sprint5-backend2.md). O guia para execução em computador com Docker está em [execucao-docker-empresa.md](../../docs/execucao-docker-empresa.md).
+
+Atualização0.5.1:32 operações, migração0006 e contrato dos onze campos em `/api/configuracoes/`. O usuário confirmou juros mensais e multa diária; ao salvar o payload da tela, ativam-se juros simples proporcionais por dias/30 e multa diária com amortizações consideradas. Consulte as políticas fixas/dinâmicas e os testes em `docs/api/sprint5-backend2.md`.

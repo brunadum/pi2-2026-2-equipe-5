@@ -1,6 +1,7 @@
 
 services:
   frontend:
+    restart: unless-stopped
     build:
       context: ./front_end
       dockerfile: Dockerfile
@@ -13,6 +14,7 @@ services:
       - backend
 
   backend:
+    restart: unless-stopped
     build:
       context: ./back_end
       dockerfile: Dockerfile
@@ -27,12 +29,18 @@ services:
     networks:
       - fiado-control-network
     depends_on:
-      - db
+      db:
+        condition: service_healthy
 
   db:
     image: postgres:15
     container_name: fiadocontrol-db
     restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
     environment:
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: adFiadPi2

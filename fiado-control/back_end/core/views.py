@@ -165,6 +165,11 @@ def _cliente_nao_encontrado():
 
 
 def _cadastrar_cliente(request):
+    from .configuracoes import politicas
+    opcoes = politicas()
+    usuario = getattr(request, 'usuario', None)
+    if not opcoes['operador_cadastrar_cliente'] and (usuario is None or usuario.perfil != 'gerente'):
+        return _erro('acesso_negado', 'Cadastro de clientes restrito ao gerente pela configuração', 403)
     dados = _ler_json(request)
     if dados is None:
         return _json_invalido()
@@ -193,7 +198,7 @@ def _cadastrar_cliente(request):
         # O seed contém CPFs ilustrativos: duplicidade existente tem precedência.
         if not cpf_valido(cpf):
             return _erro('cpf_invalido', 'CPF inválido: confira os dígitos verificadores', 422)
-        cursor.execute('INSERT INTO cliente (nome, cpf, limite_credito, ativo) VALUES (%s, %s, 0, TRUE) RETURNING id_cliente', [nome.strip(), cpf])
+        cursor.execute('INSERT INTO cliente (nome, cpf, limite_credito, ativo) VALUES (%s, %s, %s, TRUE) RETURNING id_cliente', [nome.strip(), cpf, opcoes['limite_padrao_cliente']])
         id_cliente = cursor.fetchone()[0]
         for telefone in telefones:
             cursor.execute('INSERT INTO cliente_telefone (id_cliente, numero) VALUES (%s, %s)', [id_cliente, telefone])
@@ -695,6 +700,11 @@ CAMPOS_OBRIGATORIOS_PAGAMENTO = ("id_parcela", "valor_recebido")
 
 
 def _registrar_pagamento(request):
+    from .configuracoes import politicas
+    opcoes = politicas()
+    usuario = getattr(request, 'usuario', None)
+    if not opcoes['operador_registrar_pagamento'] and (usuario is None or usuario.perfil != 'gerente'):
+        return _erro('acesso_negado', 'Registro de pagamento restrito ao gerente pela configuração', 403)
     dados = _ler_json(request)
     if dados is None:
         return _json_invalido()
@@ -705,6 +715,9 @@ def _registrar_pagamento(request):
     recebido = validar_valor(dados['valor_recebido'])
     if id_parcela is None or recebido is None:
         return _erro('campo_invalido', 'Informe id_parcela inteiro positivo e valor_recebido positivo com até duas casas decimais', 400)
+    forma = dados.get('forma_pagamento')
+    if forma is not None and forma not in ('dinheiro', 'pix', 'cartao_credito', 'cartao_debito', 'outro'):
+        return _erro('campo_invalido', 'Forma de pagamento inválida', 400)
 
     with transaction.atomic(), connection.cursor() as cursor:
         cursor.execute("""
@@ -729,14 +742,17 @@ def _registrar_pagamento(request):
             return _erro('parcela_ja_paga', 'Esta parcela já foi paga', 422)
         if recebido > devido:
             return _erro('valor_excede_devido', 'O valor do pagamento excede o valor devido da parcela', 422)
+        if recebido < devido and not opcoes['permitir_venda_parcial']:
+            return _erro('pagamento_parcial_nao_permitido', 'Pagamentos parciais estão desativados na configuração', 422)
         juros_pagos = min(recebido, parcela['juros'])
         multa_paga = min(recebido - juros_pagos, parcela['multa'])
-        id_usuario = _obter_usuario_padrao()
+        usuario = getattr(request, 'usuario', None)
+        id_usuario = usuario.pk if usuario is not None else _obter_usuario_padrao()
         hoje = date.today()
         cursor.execute("""
-            INSERT INTO recebimento (id_pagamento, valor_recebido, valor_juros, valor_multa, data_pagamento, id_usuario)
-            VALUES (%s, %s, %s, %s, %s, %s) RETURNING id_recebimento
-        """, [id_parcela, recebido, juros_pagos, multa_paga, hoje, id_usuario])
+            INSERT INTO recebimento (id_pagamento, valor_recebido, valor_juros, valor_multa, data_pagamento, id_usuario, forma_pagamento)
+            VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id_recebimento
+        """, [id_parcela, recebido, juros_pagos, multa_paga, hoje, id_usuario, forma])
         id_recebimento = cursor.fetchone()[0]
         restante = devido - recebido
         estado_banco = 'pago' if restante == ZERO else 'atrasado' if parcela['status'] == 'atrasado' else 'pendente'
@@ -754,6 +770,9 @@ def _registrar_pagamento(request):
 
 @csrf_exempt
 def pagamentos(request):
+    if request.method == 'GET':
+        from .relatorios import pagamentos as listar_pagamentos
+        return listar_pagamentos(request)
     if request.method == "POST":
         return _registrar_pagamento(request)
 
@@ -762,80 +781,11 @@ def pagamentos(request):
 
 # --------------------------------------------------------------- dashboard
 
-DIAS_PADRAO_VENCIMENTO = 7
-
-
 @csrf_exempt
 def dashboard(request):
-    if request.method != "GET":
-        return _erro("metodo_nao_permitido", 
-                     "Método não permitido nesta rota", 
-                     405
-                     )
-    
-    from .credito import _acesso
-    usuario_id, erro=_acesso(request)
+    from .relatorios import dashboard as consultar_dashboard
+    return consultar_dashboard(request)
 
-    if erro is not None:
-        return erro
-    if request.usuario.perfil != "gerente":
-        return  _erro(
-            "Acesso negando",
-            "Apenas o gerente pode acessar",
-            403
-        )
-
-
-    
-
-    periodo = request.GET.get("periodo", "mes").strip()
-    if periodo not in ("dia", "semana", "mes"):
-        return _erro("periodo_invalido", "Período deve ser dia, semana ou mes", 400)
-
-    dias_param = request.GET.get("dias", str(DIAS_PADRAO_VENCIMENTO)).strip()
-    try:
-        dias = int(dias_param)
-    except (ValueError, TypeError):
-        dias = 0
-    if dias < 1:
-        return _erro("campo_invalido", "dias deve ser um inteiro maior que zero", 400)
-
-    hoje = date.today()
-    if periodo == "dia":
-        data_inicio = hoje
-    elif periodo == "semana":
-        data_inicio = hoje - timedelta(days=6)
-    else:  # mes
-        data_inicio = hoje.replace(day=1)
-
-    with connection.cursor() as cursor:
-        cursor.execute("""
-            SELECT COALESCE(SUM(valor_total), 0) FROM venda
-            WHERE status = 'aprovada' AND data_venda::date BETWEEN %s AND %s
-        """, [data_inicio, hoje])
-        faturamento_total = cursor.fetchone()[0]
-    try:
-        limite_a_vencer = hoje + timedelta(days=dias)
-    except OverflowError:
-        return _erro('campo_invalido', 'Janela de dias fora do intervalo suportado', 400)
-    vencidas, a_vencer = [], []
-    total = vencido = ZERO
-    for p in consultar_parcelas():
-        saldo = p['valor_atualizado']
-        if saldo == ZERO:
-            continue
-        total += saldo
-        item = {'id_cliente': p['id_cliente'], 'nome': p['nome'], 'id_parcela': p['id_parcela'],
-                'valor_parcela': saldo, 'data_vencimento': p['data_vencimento']}
-        if p['status'] == 'atrasado':
-            vencido += saldo
-            item['dias_atraso'] = p['dias_atraso']
-            vencidas.append(item)
-        elif hoje <= date.fromisoformat(p['data_vencimento']) <= limite_a_vencer:
-            a_vencer.append(item)
-    return _json({'periodo': periodo, 'faturamento_total': faturamento_total,
-                  'total_a_receber': total, 'taxa_inadimplencia': round(vencido / total, 2) if total else ZERO,
-                  'parcelas_vencidas': vencidas, 'parcelas_a_vencer': a_vencer})
 
 def inserir_produto(nome, preco, estoque):
     with connection.cursor() as cursor:

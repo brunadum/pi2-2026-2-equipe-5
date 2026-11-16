@@ -84,19 +84,19 @@ O backend é executado em seu próprio container.
 Na raiz do projeto:
 
 ```bash
-docker compose up --build
+docker compose -f fiado-control/docker-compose.yml up --build
 ```
 
 Para executar em segundo plano usa-se:
 
 ```bash
-docker compose up --build -d
+docker compose -f fiado-control/docker-compose.yml up --build -d
 ```
 
 Para ocorre as parar os containers usa-se:
 
 ```bash
-docker compose down
+docker compose -f fiado-control/docker-compose.yml down
 ```
 
 ## Serviços
@@ -128,4 +128,4 @@ O frontend não deve utilizar `localhost` para acessar o backend dentro da rede 
 
 ## Status
 
-Projeto em desenvolvimento.
+Projeto em desenvolvimento. A entrega de Backend 2 da Sprint 5 está descrita em [configurações e relatórios](docs/api/sprint5-backend2.md). Para iniciar em um computador com Docker, consulte o [guia de execução](docs/execucao-docker-empresa.md).

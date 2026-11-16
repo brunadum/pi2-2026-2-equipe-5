@@ -125,6 +125,28 @@ class JWTIntegracaoTests(CreditoBase):
         self.assertEqual(self.client.get('/api/dashboard', **self.autenticar('gerente@loja.com')).status_code, 200)
         self.assertEqual(self.client.get('/api/dashboard', **self.autenticar('funcionario@loja.com')).status_code, 403)
 
+    def test_novas_rotas_financeiras_usam_jwt_e_correspondem_ao_openapi(self):
+        headers = self.autenticar('gerente@loja.com')
+        spec = self.client.get('/api/openapi.json').json()
+        for rota in ('/configuracoes/cobranca', '/pagamentos', '/produtos', '/relatorios/financeiro', '/relatorios/vendas'):
+            with self.subTest(rota=rota):
+                resposta = self.client.get('/api'+rota, **headers)
+                self.assertEqual(resposta.status_code, 200)
+                schema = spec['paths'][rota]['get']['responses']['200']['content']['application/json']['schema']
+                OAS30Validator({'components': spec['components'], **schema}).validate(resposta.json())
+        comum = self.autenticar('funcionario@loja.com')
+        for rota in ('/configuracoes/cobranca', '/pagamentos', '/relatorios/financeiro', '/relatorios/clientes/exportar'):
+            self.assertErro(self.client.get('/api'+rota, **comum), 403, 'acesso_negado')
+
+    def test_recebimento_persiste_forma_e_autor_do_login(self):
+        headers = self.autenticar('gerente@loja.com')
+        resposta = self.client.post('/api/pagamentos', json.dumps({'id_parcela': 2, 'valor_recebido': 10, 'forma_pagamento': 'pix', 'id_usuario': 1}), content_type='application/json', **headers)
+        self.assertEqual(resposta.status_code, 201)
+        registros = self.client.get('/api/pagamentos?periodo=dia', **headers).json()
+        self.assertEqual(len(registros), 1)
+        self.assertEqual(registros[0]['forma_pagamento'], 'pix')
+        self.assertEqual(registros[0]['id_usuario'], 2)
+
     def test_seed_cria_ambos_os_perfis_com_hash_sem_duplicar_usuarios(self):
         from .seed_usuarios import gerar_usuarios
 

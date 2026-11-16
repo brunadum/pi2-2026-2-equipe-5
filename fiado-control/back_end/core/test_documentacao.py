@@ -28,7 +28,7 @@ class DocumentacaoTests(SimpleTestCase):
                 if metodo in ('post', 'put', 'patch'):
                     self.assertIn('requestBody', operacao)
         self.assertEqual(len(ids), len(set(ids)))
-        self.assertEqual(len(ids), 13)
+        self.assertEqual(len(ids), 32)
         self.assertNotIn('/auth/login', schema['paths'])
         self.assertNotIn('/excecoes', schema['paths'])
 

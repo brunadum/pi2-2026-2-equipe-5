@@ -5,6 +5,7 @@ from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
 from time import sleep
+from importlib import import_module
 
 
 from django.db import connection, connections, transaction
@@ -179,6 +180,9 @@ class RotasBase(TransactionTestCase):
                 cursor.execute(schema_sql)
             if seed_sql.strip() and not seed_sql.strip().startswith("-- COLE"):
                 cursor.execute(seed_sql)
+            cursor.execute(import_module('core.migrations.0004_auditoria_financeira').AUDITORIA_SQL)
+            cursor.execute(import_module('core.migrations.0005_catalogo_descontos').SCHEMA_SQL)
+            cursor.execute(import_module('core.migrations.0006_configuracoes_tela').SCHEMA_SQL)
 
             cursor.execute("""
                 SELECT setval('usuario_id_usuario_seq', COALESCE((SELECT MAX(id_usuario) FROM usuario), 1));
@@ -352,13 +356,17 @@ class ClienteParcelasTests(RotasBase):
 
 
 class VendasTests(RotasBase):
+    def setUp(self):
+        super().setUp()
+        self.primeiro_vencimento = date(date.today().year + 1, 1, 5)
+
     def venda(self, **extra):
         corpo = {
             "id_cliente": 5,
             "modalidade": "a_prazo",
             "valor_total": 300.00,
             "quantidade_parcelas": 2,
-            "data_primeiro_vencimento": "2026-11-05",
+            "data_primeiro_vencimento": self.primeiro_vencimento.isoformat(),
         }
         corpo.update(extra)
         return self.post("/api/vendas", corpo)
@@ -373,7 +381,7 @@ class VendasTests(RotasBase):
         self.assertEqual([p["valor_parcela"] for p in v["parcelas"]], [150.0, 150.0])
         self.assertEqual(
             [p["data_vencimento"] for p in v["parcelas"]],
-            ["2026-11-05", "2026-12-05"],
+            [self.primeiro_vencimento.isoformat(), date(self.primeiro_vencimento.year, 2, 5).isoformat()],
         )
         self.assertEqual([p["numero"] for p in v["parcelas"]], [1, 2])
 
@@ -390,7 +398,7 @@ class VendasTests(RotasBase):
                 "id_cliente": 5,
                 "modalidade": "fiado",
                 "valor_total": 50,
-                "data_primeiro_vencimento": "2026-11-05",
+                "data_primeiro_vencimento": self.primeiro_vencimento.isoformat(),
             },
         )
         self.assertEqual(r.status_code, 201)
@@ -417,7 +425,7 @@ class VendasTests(RotasBase):
             "id_cliente": 5,
             "modalidade": "a_prazo",
             "valor_total": 50,
-            "data_primeiro_vencimento": "2026-11-05",
+            "data_primeiro_vencimento": self.primeiro_vencimento.isoformat(),
         }
         self.assertErro(self.post("/api/vendas", corpo), 400, "campo_obrigatorio")
 
