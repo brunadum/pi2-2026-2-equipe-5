@@ -3,7 +3,7 @@
   const FC = (window.FC = window.FC || {});
 
   const baseUrl = () =>
-    (window.FC_CONFIG?.API_BASE_URL || "http://localhost:8001/api").replace(
+    (window.FC_CONFIG?.API_BASE_URL || "https://fiado-control-api.onrender.com/api").replace(
       /\/$/,
       "",
     );

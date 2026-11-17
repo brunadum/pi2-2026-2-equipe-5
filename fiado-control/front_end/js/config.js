@@ -1,10 +1,11 @@
-// Configurações do front-end. Ajuste aqui sem mexer no restante do código.
-window.FC_CONFIG = {
-  // URL base da API Django (docker-compose expõe o back-end na porta 8001).
-  // Usa o mesmo endereço que abriu a página: no PC vira localhost; no celular,
-  // aberto por http://<IP-do-PC>, a API é chamada em http://<IP-do-PC>:8001.
-  API_BASE_URL: `${location.protocol === "https:" ? "https:" : "http:"}//${location.hostname || "localhost"}:8001/api`,
+const isLocal =
+  ["localhost", "127.0.0.1", ""].includes(location.hostname) ||
+  location.hostname.startsWith("192.168.");
 
-  // Cidade/UF usadas para sugerir ruas no cadastro de cliente.
+window.FC_CONFIG = {
+  API_BASE_URL: isLocal
+    ? `http://${location.hostname || "localhost"}:8001/api`
+    : "https://fiado-control-api.onrender.com/api",
+
   ENDERECO: { cidade: "Crateús", uf: "CE" },
 };

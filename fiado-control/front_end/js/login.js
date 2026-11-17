@@ -5,7 +5,7 @@ const usernameInput = document.querySelector("#username");
 const formMessage = document.querySelector("#form-message");
 const submitButton = loginForm.querySelector('button[type="submit"]');
 
-const API_BASE_URL = (window.FC_CONFIG?.API_BASE_URL || "http://localhost:8001").replace(/\/$/, "");
+const API_BASE_URL = (window.FC_CONFIG?.API_BASE_URL || "https://fiado-control-api.onrender.com/api").replace(/\/$/, "");
 
 togglePasswordButton.addEventListener("click", () => {
   const showingPassword = passwordInput.type === "text";

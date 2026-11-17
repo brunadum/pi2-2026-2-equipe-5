@@ -1,3 +1,4 @@
+const API_BASE_URL = (window.FC_CONFIG?.API_BASE_URL || "https://fiado-control-api.onrender.com/api").replace(/\/$/, "");
 (() => {
   const toast = document.getElementById("toast");
   const sidebar = document.getElementById("sidebar");
@@ -47,7 +48,7 @@ function cabecalhoAuth(){
 //conectar o front com backend
 async function carregarCliente(){
   try {
-    const resposta=await fetch("http://localhost:8001/api/clientes",{headers:cabecalhoAuth()})
+    const resposta=await fetch(`${API_BASE_URL}/clientes`,{headers:cabecalhoAuth()})
     if(!resposta.ok){
        throw new Error("Erro ao consultar o backend")
     }
@@ -62,7 +63,7 @@ carregarCliente()
 
 async function carregarVendas(){
   try {
-    const resposta=await fetch("http://localhost:8001/api/vendas",{headers:cabecalhoAuth()})
+    const resposta=await fetch(`${API_BASE_URL}/vendas`,{headers:cabecalhoAuth()})
 
     if(!resposta.ok){
         throw new Error("Erro ao consultar o backeend")
@@ -77,7 +78,6 @@ async function carregarVendas(){
 
 carregarVendas()
 
-// Formatar valores em reais
 function formatarMoeda(valor) {
   return new Intl.NumberFormat("pt-BR", {
     style: "currency",
@@ -85,7 +85,6 @@ function formatarMoeda(valor) {
   }).format(Number(valor));
 }
 
-// Formatar data no padrão brasileiro
 function formatarData(data) {
   const [ano, mes, dia] = data.split("-");
   return `${dia}/${mes}/${ano}`;
@@ -104,7 +103,7 @@ async function carregarDashboard() {
   try {
     const token=sessionStorage.getItem("token")
     const resposta = await fetch(
-  "http://localhost:8001/api/dashboard?periodo=mes",
+  `${API_BASE_URL}/dashboard?periodo=mes`,
   {
     method: "GET",
     headers: {
@@ -127,11 +126,9 @@ async function carregarDashboard() {
 
     const dados=await resposta.json()
 
-    // Total a receber
     document.getElementById("total-a-receber").textContent =
       formatarMoeda(dados.total_a_receber);
 
-    // Total em atraso
     const totalEmAtraso = dados.parcelas_vencidas.reduce(
       (soma, parcela) => soma + Number(parcela.valor_parcela),
       0
@@ -140,11 +137,9 @@ async function carregarDashboard() {
     document.getElementById("total-em-atraso").textContent =
       formatarMoeda(totalEmAtraso);
 
-    // Vendas aprovadas no mês
     document.getElementById("vendas-mes").textContent =
       formatarMoeda(dados.faturamento_total);
 
-    // Contar clientes inadimplentes sem repetição
     const clientesInadimplentes = new Set(
       dados.parcelas_vencidas.map(parcela => parcela.id_cliente)
     );
@@ -152,7 +147,6 @@ async function carregarDashboard() {
     document.getElementById("clientes-inadimplentes").textContent =
       clientesInadimplentes.size;
 
-       // Atualizar tabela de próximas parcelas
     tabela.replaceChildren();
 
     if (dados.parcelas_a_vencer.length === 0) {
@@ -172,8 +166,6 @@ async function carregarDashboard() {
         linha.insertCell().textContent = "A vencer";
       });
     }
-
-
 
   }catch (erro) {
     console.error("Erro no dashboard:", erro)
