@@ -9,7 +9,7 @@ Nomes de campo conferem com o MER (`USUÁRIO`, `CLIENTE`, `VENDA`, `PAGAMENTO`,
 
 ## Convenções
 
-### Estado de implementação — Sprint 4 / Backend 2
+### Estado de implementação — Sprint 5 / Backend 2
 
 O índice abaixo representa o escopo previsto, não uma lista de rotas já prontas.
 As operações disponíveis e seus payloads verificáveis estão no OpenAPI em
@@ -19,6 +19,7 @@ As operações disponíveis e seus payloads verificáveis estão no OpenAPI em
 |---|---|
 | Existentes, aguardam proteção global por perfil | `GET/POST /clientes`, `GET /clientes/{id}`, `GET /clientes/{id}/saldo`, `GET /clientes/{id}/parcelas`, `GET/POST /vendas`, `POST /pagamentos` |
 | Protegidas por JWT e perfil do banco | `GET/PUT /clientes/{id}/limite`, `PUT /clientes/{id}/credito/bloqueio`, `GET /dashboard` |
+| Novas operações protegidas | `GET /pagamentos`, `GET/PUT /configuracoes/cobranca` (alias `/configuracoes/`), `GET/POST /produtos`, `PUT /produtos/{id}`, `POST /pagamentos/{id_parcela}/desconto`, `GET /relatorios/{tipo}` e exportação CSV |
 | Login JWT existente | `POST /login/` recebe `email` e `senha`; retorna `token`, `nome` e `perfil`. O JWT HS256 expira em 24 horas |
 | Planejadas | As demais operações do índice, incluindo `/auth/login` e `/auth/logout` |
 
@@ -409,25 +410,16 @@ liberar as telas (UC01).
 - **Erros**: 400 `campo_obrigatorio` (motivo); 403 `acesso_negado`;
   404 `pagamento_nao_encontrado`; 422 `pagamento_ja_estornado`
 
-### 17. Aplicar desconto — `POST /pagamentos/{id}/desconto`
+### 17. Aplicar desconto — `POST /pagamentos/{id_parcela}/desconto`
 
-- **Requisito**: RF10 · **Regras**: RN03, RN04, RN05
-- **Entrada**:
-```json
-{ "valor_desconto": 10.00, "motivo": "Cliente antigo" }
-```
-- **Saída** (200). Reduz o valor devido da parcela do pagamento, atualiza o
-  saldo e gera registro de auditoria:
-```json
-{
-  "id_pagamento": 21,
-  "id_parcela": 10,
-  "valor_desconto": 10.00,
-  "valor_devido_atualizado": 86.30
-}
-```
-- **Erros**: 403 `acesso_negado`; 404 `pagamento_nao_encontrado`;
-  422 `desconto_invalido` (maior que o valor devido ou negativo)
+- **Requisito**: RF10 · **Regras**: RN03, RN04, RN05.
+- **Perfil**: gerente ativo autenticado.
+- O identificador no caminho é o da **parcela**, não o do recebimento. A tabela `pagamento` contém parcelas; cada baixa é registrada em `recebimento`.
+- **Entrada**: `{ "valor_desconto": 10.00, "motivo": "Acordo com o cliente" }`.
+- **Saída (200)**: `{ "id_desconto": 1, "id_parcela": 10, "valor_desconto": 10.00, "valor_devido_atualizado": 86.30, "saldo_devedor_cliente": 180.00 }`.
+- Desconto positivo, no máximo igual à dívida atual; motivo obrigatório de até 200 caracteres. Liquida primeiro juros e multa e depois o principal. Pode quitar a parcela. Descontos são armazenados separadamente e **não contam como dinheiro recebido**.
+- Saldo e auditoria do ator real são atômicos, com os mesmos bloqueios de cliente/parcela usados nas baixas.
+- **Erros**: 400 `json_invalido`, `campo_obrigatorio`, `campo_invalido`; 401 `nao_autenticado`; 403 `acesso_negado`; 404 `parcela_nao_encontrada`; 422 `desconto_invalido`.
 
 ---
 
@@ -744,3 +736,28 @@ envelope: `tipo`, `filtros`, `itens` e `totais`.
 - **Erros**: 400 `formato_invalido`; 403 `acesso_negado`; 404 `relatorio_inexistente`
 
 Erros de 403 e 401 valem para todos os relatórios (rotas 33 a 37).
+
+
+## Complemento implementado em 16/11/2026 — Sprint 5
+
+O OpenAPI 0.5.0 publica 30 operações. Exemplos completos, critérios e validação estão em [sprint5-backend2.md](sprint5-backend2.md).
+
+- `GET /pagamentos`: lista **recebimentos efetivos**, com `id_pagamento` (ID do recebimento), `id_parcela`, `id_venda`, `id_cliente`, `nome_cliente`, `valor_recebido`, `valor_juros`, `valor_multa`, `data_pagamento`, `id_usuario` e `forma_pagamento` (opcional/nula para registros antigos).
+- `POST /pagamentos`: aceita `forma_pagamento` opcional: `dinheiro`, `pix`, `cartao_credito`, `cartao_debito`, `outro`. A autoria usa o usuário do JWT quando presente. A proteção global dos endpoints legados segue na issue #60.
+- `GET /dashboard`: acrescenta `total_recebido`, `total_vencido`, `taxa_atraso` (percentual de 0 a 100), `clientes_inadimplentes` e `faturamento_semanal` (quatro itens com `rotulo`, `valor` e `recebido`). `taxa_inadimplencia` continua sendo fração de 0 a 1. O faturamento exclui vendas rejeitadas. Recebimentos antigos do seed sem registro em `recebimento` não são inventados na listagem.
+- Período `dia`, `semana` (últimos sete dias) ou `mes` (mês corrente). Faturamento/recebimentos respeitam o período; dívida e atraso representam a posição atual. O gráfico usa os últimos 28 dias, em quatro blocos de sete dias.
+- `GET/PUT /configuracoes/cobranca`: gerente; taxas numéricas de 0 a 1 com duas casas decimais, incluindo zero. A tela usa porcentagens inteiras (2% = 0.02). O autor vem do JWT. Alterações ficam no banco e na auditoria; repetir sem mudança não cria evento. Alias `/configuracoes/`. Sem configuração cadastrada, GET retorna 404 `configuracao_nao_encontrada`; PUT permite o primeiro cadastro.
+- `GET/POST /produtos`: usuários ativos autenticados. POST recebe `{ "nome": "Arroz", "preco": 7.50 }`. GET/POST retornam `id`, `nome`, `preco`, `quantidade_estoque`. Nomes ativos repetidos retornam 409. `PUT /produtos/{id}` atualiza nome/preço, somente gerente. Estoque não é gerenciado por estas operações.
+- `GET /relatorios/vendas|pagamentos|clientes|financeiro|inadimplencia`: somente gerente. Vendas e recebimentos aceitam `periodo`, `data_inicio`, `data_fim`, `id_cliente`. Clientes e inadimplência são posições atuais (o período selecionado não elimina dívidas antigas). `financeiro` retorna os mesmos indicadores do dashboard.
+- `GET /relatorios/{tipo}/exportar`: mesmas permissões e filtros, arquivo CSV UTF-8 com BOM, separador `;`, proteção contra fórmulas e cabeçalho mesmo sem registros. Tipos desconhecidos retornam 404; filtros inválidos, 400.
+
+
+## Contrato da tela de configurações — atualização0.5.1
+
+`GET/PUT /configuracoes/` aceita/devolve `multa_diaria_percentual`, `juros_mensais_percentual`, `desconto_maximo_percentual`, `limite_padrao_cliente`, `bloquear_vendas_atraso`, `permitir_cliente_sem_cpf`, `exigir_senha_venda`, `permitir_venda_parcial`, `operador_cadastrar_cliente`, `operador_registrar_pagamento`, `restringir_relatorios_admin`.
+
+O GET também informa `modo_cobranca` e os campos anteriores (`id_configuracao`, `taxa_juros`, `taxa_multa`, `definido_por`). O PUT completo ativa `mensal_diaria`: juros simples pelos dias/30 e multa diária. Não há alteração de taxas nem de modo durante consultas. Se o corpo contém ambos os formatos, os campos da tela são usados; o contrato legado continua aceito isoladamente. Taxas em fração têm até quatro casas decimais (0.0033=0,33%).
+
+Políticas obrigatórias: bloquear vendas com atraso=true; permitir cliente sem CPF=false; exigir senha em venda=false (fluxo ainda não implementado); restringir relatórios ao administrador=true. Valores incompatíveis retornam422 `politica_nao_disponivel`. Os demais campos são validados e aplicados ao cadastro, recebimento e desconto. O teto percentual de descontos é cumulativo na parcela e não pode ser contornado por várias chamadas.
+
+OpenAPI0.5.1 contém32 operações. Regras e testes atuais: [sprint5-backend2.md](sprint5-backend2.md).

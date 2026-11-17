@@ -88,8 +88,10 @@ class Pagamento(models.Model):
 
 class Configuracao(models.Model):
     id_configuracao = models.AutoField(primary_key=True)
-    taxa_juros = models.DecimalField(max_digits=5, decimal_places=2)
-    taxa_multa = models.DecimalField(max_digits=5, decimal_places=2)
+    taxa_juros = models.DecimalField(max_digits=7, decimal_places=6)
+    taxa_multa = models.DecimalField(max_digits=7, decimal_places=6)
+    modo_cobranca = models.CharField(max_length=30, default='unica')
+    preferencias = models.JSONField(default=dict)
     definido_por = models.ForeignKey(Usuario, on_delete=models.CASCADE, db_column='definido_por')
 
     class Meta:
