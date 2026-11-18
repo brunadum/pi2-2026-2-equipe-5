@@ -223,7 +223,6 @@ def clientes(request):
     return _erro("metodo_nao_permitido", "Método não permitido nesta rota", 405)
 
 
-
 @csrf_exempt
 def cliente_detalhe(request, id_cliente):
     id_cliente = identificador(id_cliente)
@@ -242,20 +241,18 @@ def cliente_detalhe(request, id_cliente):
         return _json(cliente)
 
     if request.method == "PUT":
-        if request.usuario is None:
-          return _erro(
-            "nao_autenticado",
-            "Autenticação necessária",
-            401,
-        )
-        dados = _ler_json(request)
+        if getattr(request, "usuario", None) is None:
+            return _erro(
+                "nao_autenticado",
+                "Autenticação necessária",
+                401,
+            )
 
+        dados = _ler_json(request)
         if dados is None:
             return _json_invalido()
 
-        faltando = campos_ausentes(
-            dados, CAMPOS_OBRIGATORIOS_CLIENTE
-        )
+        faltando = campos_ausentes(dados, ("nome", "telefone"))
         if faltando:
             return _erro(
                 "campo_obrigatorio",
@@ -265,7 +262,6 @@ def cliente_detalhe(request, id_cliente):
             )
 
         nome = dados["nome"]
-        cpf = normalizar_cpf(dados["cpf"])
         telefones = dados["telefone"]
 
         if not isinstance(nome, str) or not 1 <= len(nome.strip()) <= 100:
@@ -275,7 +271,9 @@ def cliente_detalhe(request, id_cliente):
                 400,
             )
 
-        if cpf is None or not cpf_valido(cpf):
+        cpf_informado = "cpf" in dados and dados["cpf"] not in (None, "")
+        cpf = normalizar_cpf(dados["cpf"]) if cpf_informado else None
+        if cpf_informado and (cpf is None or not cpf_valido(cpf)):
             return _erro(
                 "cpf_invalido",
                 "CPF inválido",
@@ -290,7 +288,6 @@ def cliente_detalhe(request, id_cliente):
             )
 
         telefones = [normalizar_telefone(t) for t in telefones]
-
         if not telefones or any(t is None for t in telefones):
             return _erro(
                 "telefone_invalido",
@@ -307,29 +304,33 @@ def cliente_detalhe(request, id_cliente):
                     "WHERE id_cliente = %s FOR UPDATE",
                     [id_cliente],
                 )
-
                 if cursor.fetchone() is None:
                     return _cliente_nao_encontrado()
 
-                cursor.execute(
-                    "SELECT 1 FROM cliente "
-                    "WHERE REGEXP_REPLACE(cpf, '[^0-9]', '', 'g') = %s "
-                    "AND id_cliente <> %s",
-                    [cpf, id_cliente],
-                )
-
-                if cursor.fetchone():
-                    return _erro(
-                        "cpf_duplicado",
-                        "CPF já cadastrado para outro cliente",
-                        409,
+                if cpf_informado:
+                    cursor.execute(
+                        "SELECT 1 FROM cliente "
+                        "WHERE REGEXP_REPLACE(cpf, '[^0-9]', '', 'g') = %s "
+                        "AND id_cliente <> %s",
+                        [cpf, id_cliente],
                     )
-
-                cursor.execute(
-                    "UPDATE cliente SET nome = %s, cpf = %s "
-                    "WHERE id_cliente = %s",
-                    [nome.strip(), cpf, id_cliente],
-                )
+                    if cursor.fetchone():
+                        return _erro(
+                            "cpf_duplicado",
+                            "CPF já cadastrado para outro cliente",
+                            409,
+                        )
+                    cursor.execute(
+                        "UPDATE cliente SET nome = %s, cpf = %s "
+                        "WHERE id_cliente = %s",
+                        [nome.strip(), cpf, id_cliente],
+                    )
+                else:
+                    cursor.execute(
+                        "UPDATE cliente SET nome = %s "
+                        "WHERE id_cliente = %s",
+                        [nome.strip(), id_cliente],
+                    )
 
                 cursor.execute(
                     "DELETE FROM cliente_telefone WHERE id_cliente = %s",
@@ -347,10 +348,8 @@ def cliente_detalhe(request, id_cliente):
 
         return _json(cliente)
 
-    
-    
     if request.method == "DELETE":
-        if request.usuario is None:
+        if getattr(request, "usuario", None) is None:
             return _erro(
                 "nao_autenticado",
                 "Autenticação necessária",
@@ -394,16 +393,11 @@ def cliente_detalhe(request, id_cliente):
             "mensagem": "Cliente desativado com sucesso"
         })
 
-
-
     return _erro(
         "metodo_nao_permitido",
         "Método não permitido nesta rota",
         405,
     )
-
-
-
 
 
 def _parcelas_do_cliente(id_cliente, status=None):
@@ -451,6 +445,91 @@ def cliente_saldo(request, id_cliente):
         "possui_parcelas_atrasadas": any(p["status"] == "atrasado" for p in parcelas),
         "credito_bloqueado": cliente["credito_bloqueado"],
     })
+
+
+@csrf_exempt
+def cliente_historico(request, id_cliente):
+    if request.method != "GET":
+        return _erro("metodo_nao_permitido", "Método não permitido nesta rota", 405)
+    if getattr(request, "usuario", None) is None:
+        return _erro("nao_autenticado", "Autenticação necessária", 401)
+
+    id_cliente = identificador(id_cliente)
+    if id_cliente is None:
+        return _erro("campo_invalido", "Identificador do cliente deve ser um inteiro positivo válido", 400)
+    if _buscar_cliente(id_cliente) is None:
+        return _cliente_nao_encontrado()
+
+    filtros_data = {}
+    for campo in ("data_inicio", "data_fim"):
+        valor = request.GET.get(campo, "").strip()
+        if not valor:
+            continue
+        try:
+            filtros_data[campo] = data_iso(valor)
+        except ValueError:
+            return _erro("campo_invalido", "Datas de filtro devem estar no formato AAAA-MM-DD", 400)
+
+    if "data_inicio" in filtros_data and "data_fim" in filtros_data and filtros_data["data_inicio"] > filtros_data["data_fim"]:
+        return _erro("campo_invalido", "data_inicio não pode ser posterior a data_fim", 400)
+
+    movimentacoes = []
+    with connection.cursor() as cursor:
+        sql_vendas = """
+            SELECT id_venda, data_venda::date, valor_total, status
+            FROM venda
+            WHERE id_cliente = %s
+        """
+        params_vendas = [id_cliente]
+        if "data_inicio" in filtros_data:
+            sql_vendas += " AND data_venda::date >= %s"
+            params_vendas.append(filtros_data["data_inicio"])
+        if "data_fim" in filtros_data:
+            sql_vendas += " AND data_venda::date <= %s"
+            params_vendas.append(filtros_data["data_fim"])
+
+        cursor.execute(sql_vendas, params_vendas)
+        for id_venda, data_mov, valor_total, status_venda in cursor.fetchall():
+            movimentacoes.append({
+                "tipo": "venda",
+                "id": id_venda,
+                "data": data_mov.isoformat(),
+                "valor": valor_total,
+            })
+            if status_venda == "cancelada":
+                movimentacoes.append({
+                    "tipo": "cancelamento",
+                    "id": id_venda,
+                    "data": data_mov.isoformat(),
+                    "valor": valor_total,
+                })
+
+        sql_rec = """
+            SELECT r.id_recebimento, r.data_pagamento, r.valor_recebido
+            FROM recebimento r
+            INNER JOIN pagamento p ON p.id_pagamento = r.id_pagamento
+            INNER JOIN venda v ON v.id_venda = p.id_venda
+            WHERE v.id_cliente = %s
+        """
+        params_rec = [id_cliente]
+        if "data_inicio" in filtros_data:
+            sql_rec += " AND r.data_pagamento >= %s"
+            params_rec.append(filtros_data["data_inicio"])
+        if "data_fim" in filtros_data:
+            sql_rec += " AND r.data_pagamento <= %s"
+            params_rec.append(filtros_data["data_fim"])
+
+        cursor.execute(sql_rec, params_rec)
+        for id_rec, data_pag, valor_rec in cursor.fetchall():
+            movimentacoes.append({
+                "tipo": "pagamento",
+                "id": id_rec,
+                "data": data_pag.isoformat(),
+                "valor": valor_rec,
+            })
+
+    movimentacoes.sort(key=lambda item: (item["data"], item["id"]), reverse=True)
+    return _json(movimentacoes)
 
 
 # ------------------------------------------------------------------ vendas
@@ -796,11 +875,13 @@ def inserir_produto(nome, preco, estoque):
         resultado = cursor.fetchone()
         return resultado[0] if resultado else None
 
+
 def listar_produtos_ativos():
     with connection.cursor() as cursor:
         cursor.execute("SELECT id, nome, preco_venda, quantidade_estoque FROM produto WHERE ativo = TRUE ORDER BY nome;")
         colunas = [col[0] for col in cursor.description]
         return [dict(zip(colunas, linha)) for linha in cursor.fetchall()]
+
 
 @csrf_exempt
 def login_usuario(request):
@@ -820,23 +901,25 @@ def login_usuario(request):
                 usuario = cursor.fetchone()
 
             if usuario:
-                id_usuario,nome,senha_hash, perfil_nome = usuario
-                
+                id_usuario, nome, senha_hash, perfil_nome = usuario
+
                 if check_password(senha_digitada, senha_hash):
                     payload = {
                         'id_usuario': id_usuario,
                         'email': email,
-                        'perfil': perfil_nome, 
+                        'perfil': perfil_nome,
                         'exp': datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=24)
                     }
                     token = jwt.encode(payload, settings.SECRET_KEY, algorithm='HS256')
 
                     return JsonResponse({
-                                         'token': token,'nome': nome,
-                                         'perfil': perfil_nome}, status=200)
+                        'token': token,
+                        'nome': nome,
+                        'perfil': perfil_nome
+                    }, status=200)
 
             return JsonResponse({'erro': 'Email ou senha invalidos'}, status=401)
         except Exception as e:
             return JsonResponse({'erro': str(e)}, status=400)
-            
+
     return JsonResponse({'erro': 'Método não permitido'}, status=405)
