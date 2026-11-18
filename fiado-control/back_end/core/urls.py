@@ -34,6 +34,8 @@ urlpatterns = [
     path("clientes/<str:id_cliente>/", views.cliente_detalhe),
     path("clientes/<str:id_cliente>/saldo", views.cliente_saldo),
     path("clientes/<str:id_cliente>/saldo/", views.cliente_saldo),
+    path("clientes/<str:id_cliente>/historico", views.cliente_historico),
+    path("clientes/<str:id_cliente>/historico/", views.cliente_historico),
     path("clientes/<str:id_cliente>/parcelas", views.cliente_parcelas),
     path("clientes/<str:id_cliente>/parcelas/", views.cliente_parcelas),
     path("vendas", views.vendas),
