@@ -282,6 +282,12 @@
   $("btn-cadastro-rapido").addEventListener("click", () => FC.cadastroCliente.abrir());
 
   // --------------------------------------------------------------- produtos
+  
+
+  FC.produtos.carregar().catch((erro) => {
+    console.error("Erro ao carregar produtos:", erro);
+});
+  
 
   FC.produtoModal.init({
     aoSalvar(item, indice) {
