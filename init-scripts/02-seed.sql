@@ -1,6 +1,6 @@
 INSERT INTO perfil (nome, descricao) VALUES 
-('GERENTE', 'Acesso de gerência da loja'),
-('FUNCIONARIO', 'Acesso operacional as vendas')
+('ADMIN', 'Acesso total'),
+('COMUM', 'Acesso as vendas')
 ON CONFLICT (nome) DO NOTHING;
 
 
