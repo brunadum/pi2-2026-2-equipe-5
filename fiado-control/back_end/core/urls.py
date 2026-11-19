@@ -3,7 +3,7 @@ from django.urls import path
 from . import views
 from . import credito
 from . import documentacao
-from . import configuracoes, relatorios, produtos, descontos
+from . import configuracoes, relatorios, produtos, descontos, operacoes_financeiras
 
 
 urlpatterns = [
@@ -40,8 +40,12 @@ urlpatterns = [
     path("clientes/<str:id_cliente>/parcelas/", views.cliente_parcelas),
     path("vendas", views.vendas),
     path("vendas/", views.vendas),
+    path("vendas/<str:id_venda>/cancelar", operacoes_financeiras.cancelar_venda),
+    path("vendas/<str:id_venda>/cancelar/", operacoes_financeiras.cancelar_venda),
     path("pagamentos", views.pagamentos),
     path("pagamentos/", views.pagamentos),
+    path("pagamentos/<str:id_pagamento>/estornar", operacoes_financeiras.estornar_pagamento),
+    path("pagamentos/<str:id_pagamento>/estornar/", operacoes_financeiras.estornar_pagamento),
     path("dashboard", views.dashboard),
     path("dashboard/", views.dashboard),
 ]
