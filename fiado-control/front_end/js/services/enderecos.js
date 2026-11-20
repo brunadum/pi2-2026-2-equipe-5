@@ -1,136 +1,103 @@
 
 (function () {
-    const FC = (window.FC = window.FC || {});
-    const { semAcento, normalizar } = FC.format;
+  const FC = (window.FC = window.FC || {});
+  const { semAcento, normalizar } = FC.format;
 
-    const cache = new Map();
-    const MAX = 8;
+  const cache = new Map();
+  const MAX = 8;
 
-    const contexto = () => window.FC_CONFIG?.ENDERECO || { cidade: "", uf: "" };
+  const contexto = () => window.FC_CONFIG?.ENDERECO || { cidade: "", uf: "" };
 
-    function unicos(lista) {
-        const vistos = new Set();
-        const saida = [];
+  function extrairRua(termo) {
+    return String(termo || "")
+      .split(",")[0]
+      .replace(/\s+\d+[A-Za-z]?\s*$/, "")
+      .trim();
+  }
 
-        for (const item of lista) {
-            if (!item.logradouro) continue;
+  function unicos(lista) {
+    const vistos = new Set();
+    const saida = [];
 
-            const chave = normalizar(item.logradouro) + "|" + normalizar(item.bairro);
-
-            if (vistos.has(chave)) continue;
-
-            vistos.add(chave);
-
-            saida.push({
-                ...item,
-                texto: item.bairro
-                    ? `${item.logradouro}, ${item.bairro}`
-                    : item.logradouro
-            });
-
-            if (saida.length >= MAX) break;
-        }
-
-        return saida;
+    for (const item of lista) {
+      if (!item.logradouro) continue;
+      const chave = normalizar(item.logradouro) + "|" + normalizar(item.bairro || "");
+      if (vistos.has(chave)) continue;
+      vistos.add(chave);
+      saida.push({
+        ...item,
+        texto: item.bairro ? `${item.logradouro}, ${item.bairro}` : item.logradouro,
+      });
+      if (saida.length >= MAX) break;
     }
 
-    async function viaCep(termo, signal) {
-        const { cidade, uf } = contexto();
+    return saida;
+  }
 
-        const logradouro = termo.split(",")[0].trim();
+  async function viaCep(rua, signal) {
+    const { cidade, uf } = contexto();
+    if (!cidade || !uf || rua.length < 3) return [];
 
-        if (logradouro.length < 3 || !cidade || !uf) {
-            return [];
+    const url = `https://viacep.com.br/ws/${encodeURIComponent(uf)}/${encodeURIComponent(semAcento(cidade))}/${encodeURIComponent(rua)}/json/`;
+    const resposta = await fetch(url, { signal });
+    if (!resposta.ok) throw new Error("viacep");
+
+    const dados = await resposta.json();
+    if (!Array.isArray(dados)) return [];
+
+    return unicos(dados.map((item) => ({
+      logradouro: item.logradouro,
+      bairro: item.bairro,
+      origem: "viacep",
+    })));
+  }
+
+  async function nominatim(rua, signal) {
+    const { cidade, uf } = contexto();
+    const consulta = [rua, cidade, uf, "Brasil"].filter(Boolean).join(", ");
+    const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&countrycodes=br&limit=15&accept-language=pt-BR&q=${encodeURIComponent(consulta)}`;
+    const resposta = await fetch(url, {
+      signal,
+      headers: { Accept: "application/json" },
+    });
+    if (!resposta.ok) throw new Error("nominatim");
+
+    const dados = await resposta.json();
+    if (!Array.isArray(dados)) return [];
+
+    return unicos(dados.map((item) => ({
+      logradouro: item.address?.road || item.address?.pedestrian || item.address?.residential,
+      bairro: item.address?.suburb || item.address?.neighbourhood || item.address?.city_district || "",
+      origem: "osm",
+    })));
+  }
+
+  async function sugerirRuas(termo, { signal } = {}) {
+    const rua = extrairRua(termo);
+    if (rua.length < 3) return [];
+
+    const { cidade, uf } = contexto();
+    const chave = [normalizar(uf), normalizar(cidade), normalizar(rua)].join("|");
+    if (cache.has(chave)) return cache.get(chave);
+
+    let falhas = 0;
+    for (const fonte of [viaCep, nominatim]) {
+      try {
+        const resultado = await fonte(rua, signal);
+        if (resultado.length) {
+          cache.set(chave, resultado);
+          return resultado;
         }
-
-        const url = `https://viacep.com.br/ws/${encodeURIComponent(uf)}/${encodeURIComponent(semAcento(cidade))}/${encodeURIComponent(logradouro)}/json/`;
-
-        const r = await fetch(url, { signal });
-
-        if (!r.ok) {
-            throw new Error("viacep");
-        }
-
-        const dados = await r.json();
-
-        if (!Array.isArray(dados)) {
-            return [];
-        }
-
-        return unicos(
-            dados.map((d) => ({
-                logradouro: d.logradouro,
-                bairro: d.bairro,
-                origem: "viacep"
-            }))
-        );
+      } catch (erro) {
+        if (erro.name === "AbortError") throw erro;
+        falhas++;
+      }
     }
 
-    async function nominatim(termo, signal) {
-        const { cidade, uf } = contexto();
+    if (falhas === 2) throw new Error("Serviço de endereços indisponível");
+    cache.set(chave, []);
+    return [];
+  }
 
-        const q = [termo, cidade, uf, "Brasil"]
-            .filter(Boolean)
-            .join(", ");
-
-        const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&countrycodes=br&limit=15&accept-language=pt-BR&q=${encodeURIComponent(q)}`;
-
-        const r = await fetch(url, {
-            signal,
-            headers: {
-                Accept: "application/json"
-            }
-        });
-
-        if (!r.ok) {
-            throw new Error("nominatim");
-        }
-
-        const dados = await r.json();
-
-        return unicos(
-            dados.map((d) => ({
-                logradouro: d.address?.road,
-                bairro:
-                    d.address?.suburb ||
-                    d.address?.neighbourhood ||
-                    d.address?.city_district ||
-                    "",
-                origem: "osm"
-            }))
-        );
-    }
-
-    async function sugerirRuas(termo, { signal } = {}) {
-        const chave = normalizar(termo);
-
-        if (cache.has(chave)) {
-            return cache.get(chave);
-        }
-
-        let resultado = [];
-        let falhas = 0;
-
-        for (const fonte of [viaCep, nominatim]) {
-            try {
-                resultado = await fonte(termo, signal);
-
-                if (resultado.length) break;
-
-            } catch (e) {
-                if (e.name === "AbortError") throw e;
-                falhas++;
-            }
-        }
-
-        if (!resultado.length && falhas === 2) {
-            throw new Error("Serviço de endereços indisponível");
-        }
-
-        cache.set(chave, resultado);
-
-        return resultado;
-    }
-
-    FC.enderecos = { sugerirRuas };
+  FC.enderecos = { sugerirRuas };
 })();

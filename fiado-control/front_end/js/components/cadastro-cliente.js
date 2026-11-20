@@ -1,8 +1,3 @@
-// Modal "Cadastro Rápido de Cliente" (namespace global FC.cadastroCliente).
-//
-// Uso: FC.cadastroCliente.init({ obterCpfs: () => Set<string>, aoCadastrar: (cliente) => void, aoEditar: (cliente) => void });
-//      FC.cadastroCliente.abrir();            → cadastro de um novo cliente
-//      FC.cadastroCliente.abrir(cliente);     → edição de um cliente existente
 (function () {
   const FC = (window.FC = window.FC || {});
   const { apenasDigitos, escapeHtml } = FC.format;
@@ -12,61 +7,73 @@
   const OBRIGATORIOS = ["nome", "cpf", "telefone"];
   const CAMPOS = ["nome", "cpf", "telefone", "limite", "rua", "numero"];
 
-  let opcoes = { obterCpfs: () => new Set(), aoCadastrar: () => {}, aoEditar: () => {} };
-  let editando = null; // cliente em edição (null = cadastro novo)
+  let opcoes = {
+    obterCpfs: () => new Set(),
+    aoCadastrar: () => {},
+    aoEditar: () => {},
+  };
+  let editando = null;
   let modal, form, alerta, enviar, entradas, erros, rua;
   let tocados = new Set();
   let enviando = false;
   const autocomplete = {};
 
-  // ------------------------------------------------------------- validação
-
   const regras = {
     nome(v) {
       if (!v.trim()) return "Informe o nome completo.";
-      return validarNome(v) ? "" : "Informe um nome válido (use apenas letras).";
+      return validarNome(v)
+        ? ""
+        : "Informe um nome válido (use apenas letras).";
     },
     cpf(v) {
       const d = apenasDigitos(v);
       if (!d) return "Informe o CPF.";
       if (d.length < 11) return "CPF incompleto.";
       if (!validarCpf(d)) return "CPF inválido. Confira os números digitados.";
-      if (opcoes.obterCpfs().has(d) && !(editando && editando.cpf === d)) return "Já existe um cliente cadastrado com este CPF.";
+      if (opcoes.obterCpfs().has(d) && !(editando && editando.cpf === d))
+        return "Já existe um cliente cadastrado com este CPF.";
       return "";
     },
     telefone(v) {
       const d = apenasDigitos(v);
       if (!d) return "Informe o telefone.";
-      return validarTelefone(d) ? "" : "Telefone inválido. Use DDD + número, ex.: (88) 99999-9999.";
+      return validarTelefone(d)
+        ? ""
+        : "Telefone inválido. Use DDD + número, ex.: (88) 99999-9999.";
     },
     limite: () => "",
     rua(v) {
       const texto = v.trim();
-      if (!texto && entradas.numero.value.trim()) return "Informe a rua e o bairro deste número.";
+      if (!texto && entradas.numero.value.trim())
+        return "Informe a rua e o bairro deste número.";
       if (texto && texto.length < 3) return "Endereço muito curto.";
       return "";
     },
     numero(v) {
-      if (!v.trim() && entradas.rua.value.trim()) return "Informe o número (ou S/N).";
+      if (!v.trim() && entradas.rua.value.trim())
+        return "Informe o número (ou S/N).";
       return "";
     },
   };
 
-  const validarTudo = () => Object.fromEntries(CAMPOS.map((c) => [c, regras[c](entradas[c].value)]));
+  const validarTudo = () =>
+    Object.fromEntries(CAMPOS.map((c) => [c, regras[c](entradas[c].value)]));
 
   function mostrarErro(campo, mensagem) {
     const caixa = erros[campo];
     if (!caixa) return;
     caixa.textContent = mensagem;
     caixa.hidden = !mensagem;
-    entradas[campo].closest(".form-field").classList.toggle("has-error", !!mensagem);
+    entradas[campo]
+      .closest(".form-field")
+      .classList.toggle("has-error", !!mensagem);
     entradas[campo].setAttribute("aria-invalid", mensagem ? "true" : "false");
   }
 
-  // Mostra erros só dos campos já visitados; habilita o botão só se tudo estiver válido.
   function atualizar() {
     const todos = validarTudo();
-    for (const campo of CAMPOS) mostrarErro(campo, tocados.has(campo) ? todos[campo] : "");
+    for (const campo of CAMPOS)
+      mostrarErro(campo, tocados.has(campo) ? todos[campo] : "");
     const valido = CAMPOS.every((c) => !todos[c]);
     enviar.disabled = !valido || enviando;
     return todos;
@@ -74,10 +81,8 @@
 
   function aoDigitar() {
     atualizar();
-    alerta.hidden = true; // limpa o alerta geral assim que o usuário corrige algo
+    alerta.hidden = true;
   }
-
-  // ---------------------------------------------------- autocomplete de rua
 
   function fecharLista() {
     autocomplete.lista.hidden = true;
@@ -121,15 +126,20 @@
 
     pintarLista('<li class="combo-msg">Buscando ruas…</li>');
     try {
-      const itens = await FC.enderecos.sugerirRuas(termo, { signal: controle.signal });
+      const itens = await FC.enderecos.sugerirRuas(termo, {
+        signal: controle.signal,
+      });
       if (controle.signal.aborted) return;
       autocomplete.itens = itens;
       if (!itens.length) {
-        pintarLista('<li class="combo-msg">Nenhuma rua encontrada. Você pode digitar o endereço manualmente.</li>');
+        fecharLista();
         return;
       }
       const opcoesHtml = itens
-        .map((it, i) => `<li role="option" id="cli-rua-op-${i}" data-i="${i}" aria-selected="false">${escapeHtml(it.logradouro)}${it.bairro ? `<small>${escapeHtml(it.bairro)}</small>` : ""}</li>`)
+        .map(
+          (it, i) =>
+            `<li role="option" id="cli-rua-op-${i}" data-i="${i}" aria-selected="false">${escapeHtml(it.logradouro)}${it.bairro ? `<small>${escapeHtml(it.bairro)}</small>` : ""}</li>`,
+        )
         .join("");
       const credito = itens.some((i) => i.origem === "osm")
         ? '<li class="combo-credito" aria-hidden="true">Dados © colaboradores do OpenStreetMap</li>'
@@ -138,7 +148,7 @@
       autocomplete.ativo = -1;
     } catch (e) {
       if (e.name === "AbortError") return;
-      pintarLista('<li class="combo-msg">Não foi possível buscar sugestões agora. Digite o endereço manualmente.</li>');
+      fecharLista();
     }
   }
 
@@ -149,8 +159,13 @@
 
     rua.addEventListener("input", () => {
       window.clearTimeout(autocomplete.timer);
-      const termo = rua.value.trim();
+      const termo = rua.value.split(",")[0].trim();
       if (termo.length < 3) {
+        if (autocomplete.controle) autocomplete.controle.abort();
+        fecharLista();
+        return;
+      }
+      if (rua.value.includes(",") && /,\s*\d/.test(rua.value)) {
         if (autocomplete.controle) autocomplete.controle.abort();
         fecharLista();
         return;
@@ -160,18 +175,21 @@
 
     rua.addEventListener("keydown", (e) => {
       const aberta = !autocomplete.lista.hidden;
-      if (e.key === "ArrowDown" && aberta) { e.preventDefault(); marcarAtivo(autocomplete.ativo + 1); }
-      else if (e.key === "ArrowUp" && aberta) { e.preventDefault(); marcarAtivo(autocomplete.ativo - 1); }
-      else if (e.key === "Enter" && aberta && autocomplete.ativo >= 0) {
+      if (e.key === "ArrowDown" && aberta) {
+        e.preventDefault();
+        marcarAtivo(autocomplete.ativo + 1);
+      } else if (e.key === "ArrowUp" && aberta) {
+        e.preventDefault();
+        marcarAtivo(autocomplete.ativo - 1);
+      } else if (e.key === "Enter" && aberta && autocomplete.ativo >= 0) {
         e.preventDefault();
         escolherSugestao(autocomplete.itens[autocomplete.ativo]);
       } else if (e.key === "Escape" && aberta) {
-        e.stopPropagation(); // fecha só a lista, não o modal
+        e.stopPropagation();
         fecharLista();
       }
     });
 
-    // mousedown (e não click) para disparar antes do blur do campo
     autocomplete.lista.addEventListener("mousedown", (e) => {
       const li = e.target.closest('[role="option"]');
       if (!li) return;
@@ -182,21 +200,31 @@
     rua.addEventListener("blur", () => window.setTimeout(fecharLista, 120));
   }
 
-  // ---------------------------------------------------------------- envio
-
   function definirEnviando(valor) {
     enviando = valor;
     enviar.classList.toggle("is-loading", valor);
-    enviar.disabled = valor || !CAMPOS.every((c) => !regras[c](entradas[c].value));
-    CAMPOS.forEach((c) => { entradas[c].disabled = valor; });
+    enviar.disabled =
+      valor || !CAMPOS.every((c) => !regras[c](entradas[c].value));
+    CAMPOS.forEach((c) => {
+      entradas[c].disabled = valor;
+    });
     modal.travar(valor);
   }
 
   function aplicarErroServidor(e) {
-    if (e.rede) { alerta.textContent = e.mensagem; alerta.hidden = false; return; }
+    if (e.rede) {
+      alerta.textContent = e.mensagem;
+      alerta.hidden = false;
+      return;
+    }
 
     if (e.codigo === "campo_obrigatorio" && Array.isArray(e.dados?.campos)) {
-      e.dados.campos.forEach((c) => { if (erros[c]) { tocados.add(c); mostrarErro(c, "Campo obrigatório."); } });
+      e.dados.campos.forEach((c) => {
+        if (erros[c]) {
+          tocados.add(c);
+          mostrarErro(c, "Campo obrigatório.");
+        }
+      });
       alerta.textContent = "Preencha os campos obrigatórios destacados.";
     } else if (e.codigo === "cpf_invalido") {
       tocados.add("cpf");
@@ -204,7 +232,11 @@
       entradas.cpf.focus();
       return;
     } else {
-      alerta.textContent = e.mensagem || (editando ? "Não foi possível salvar as alterações. Tente novamente." : "Não foi possível cadastrar o cliente. Tente novamente.");
+      alerta.textContent =
+        e.mensagem ||
+        (editando
+          ? "Não foi possível salvar as alterações. Tente novamente."
+          : "Não foi possível cadastrar o cliente. Tente novamente.");
     }
     alerta.hidden = false;
   }
@@ -231,7 +263,12 @@
         cpf: entradas.cpf.value,
         telefone: entradas.telefone.value,
         limite: masks.valorMoeda(entradas.limite) || 0,
-        endereco: ruaTexto ? { logradouro_bairro: ruaTexto, numero: entradas.numero.value.trim() } : null,
+        endereco: ruaTexto
+          ? {
+              logradouro_bairro: ruaTexto,
+              numero: entradas.numero.value.trim(),
+            }
+          : null,
       };
       if (editando) {
         const original = editando;
@@ -253,8 +290,6 @@
     }
   }
 
-  // ------------------------------------------------------------- ciclo
-
   function limpar() {
     form.reset();
     tocados = new Set();
@@ -266,7 +301,13 @@
 
   function init(config = {}) {
     opcoes = { ...opcoes, ...config };
-    modal = FC.ui.criarModal(document.getElementById("modal-cliente"), { aoFechar: () => { limpar(); editando = null; textosDoModo(); } });
+    modal = FC.ui.criarModal(document.getElementById("modal-cliente"), {
+      aoFechar: () => {
+        limpar();
+        editando = null;
+        textosDoModo();
+      },
+    });
     form = document.getElementById("form-cliente");
     alerta = document.getElementById("cli-alerta");
     enviar = document.getElementById("cli-enviar");
@@ -279,7 +320,9 @@
       numero: document.getElementById("cli-numero"),
     };
     rua = entradas.rua;
-    erros = Object.fromEntries(CAMPOS.map((c) => [c, document.getElementById(`cli-${c}-erro`)]));
+    erros = Object.fromEntries(
+      CAMPOS.map((c) => [c, document.getElementById(`cli-${c}-erro`)]),
+    );
 
     masks.mascaraCpf(entradas.cpf);
     masks.mascaraTelefone(entradas.telefone);
@@ -292,28 +335,37 @@
       entradas[campo].addEventListener("blur", () => {
         if (enviando || !modal.estaAberto()) return;
         tocados.add(campo);
-        // Rua e número andam juntos: se um deles foi preenchido, o outro também precisa aparecer validado.
-        if ((campo === "rua" || campo === "numero") && (entradas.rua.value.trim() || entradas.numero.value.trim())) {
+        if (
+          (campo === "rua" || campo === "numero") &&
+          (entradas.rua.value.trim() || entradas.numero.value.trim())
+        ) {
           tocados.add("rua");
           tocados.add("numero");
         }
         atualizar();
       });
     }
-    // Rua e número dependem um do outro.
-    entradas.rua.addEventListener("input", () => { if (tocados.has("numero")) atualizar(); });
-    entradas.numero.addEventListener("input", () => { if (tocados.has("rua")) atualizar(); });
+
+    entradas.rua.addEventListener("input", () => {
+      if (tocados.has("numero")) atualizar();
+    });
+    entradas.numero.addEventListener("input", () => {
+      if (tocados.has("rua")) atualizar();
+    });
 
     form.addEventListener("submit", submeter);
   }
 
   function textosDoModo() {
-    document.getElementById("modal-cliente-titulo").textContent = editando ? "Editar Cliente" : "Cadastro Rápido de Cliente";
+    document.getElementById("modal-cliente-titulo").textContent = editando
+      ? "Editar Cliente"
+      : "Cadastro Rápido de Cliente";
     enviar.textContent = editando ? "Salvar alterações" : "Cadastrar cliente";
-    document.querySelector('label[for="cli-limite"]').textContent = editando ? "Limite de crédito" : "Limite de crédito inicial";
+    document.querySelector('label[for="cli-limite"]').textContent = editando
+      ? "Limite de crédito"
+      : "Limite de crédito inicial";
   }
 
-  // Sem argumento: novo cliente. Com `cliente`: edita aquele cliente.
   function abrir(cliente) {
     limpar();
     editando = cliente || null;
@@ -321,7 +373,9 @@
     if (editando) {
       entradas.nome.value = editando.nome || "";
       entradas.cpf.value = FC.masks.formatarCpf(editando.cpf || "");
-      entradas.telefone.value = FC.masks.formatarTelefone(editando.telefone?.[0] || "");
+      entradas.telefone.value = FC.masks.formatarTelefone(
+        editando.telefone?.[0] || "",
+      );
       masks.definirMoeda(entradas.limite, editando.limite_credito || 0);
       entradas.rua.value = editando.endereco?.logradouro_bairro || "";
       entradas.numero.value = editando.endereco?.numero || "";
@@ -332,3 +386,6 @@
 
   FC.cadastroCliente = { init, abrir, OBRIGATORIOS };
 })();
+
+
+//back end fez auteração nesses codigos
