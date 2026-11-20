@@ -117,10 +117,6 @@
     .filter((c) => c.ativo);
   }
 
-
-
-
-
   async function obterCliente(id) {
     const store = lerStore();
 
@@ -472,40 +468,19 @@
     const cpfDigitos = apenasDigitos(cpf);
     const telDigitos = apenasDigitos(telefone);
 
-    // Contrato (rota 5): nome, cpf e telefone (lista). O limite é definido depois (rota 19).
-    await request("/clientes", {
+    
+    const resposta = await request("/clientes", {
       method: "POST",
       body: { nome: nome.trim(), cpf: cpfDigitos, telefone: [telDigitos], ...(endereco ? { endereco } : {}) },
     });
 
-    // O POST atual do back-end responde 201 mas ainda não grava. Se o cliente não aparecer na
-    // listagem, guardamos localmente para ele existir nas telas.
-    let criado = (await listarClientes()).find((c) => c.cpf === cpfDigitos && !c.local);
-    if (!criado) {
-      usoLocal.add("cadastro");
-      const store = lerStore();
-      criado = {
-        id: `L${++store.seq}`,
-        nome: nome.trim(),
-        cpf: cpfDigitos,
-        telefone: [telDigitos],
-        limite_credito: 0,
-        credito_bloqueado: false,
-        ativo: true,
-        endereco: endereco || null,
-        local: true,
-      };
-      store.clientes.push(criado);
-      salvarStore(store);
-    }
+   const criado = normalizarCliente(resposta, lerStore());
 
     if (limite > 0) await alterarLimite(criado, limite);
     return criado;
   }
 
-  // ----------------------------------------------------- editar / excluir
 
-  // dados: { nome, cpf, telefone, limite?, endereco? }
   async function editarCliente(cliente, { nome, cpf, telefone, limite, endereco }) {
     const cpfDigitos = apenasDigitos(cpf);
     const telDigitos = apenasDigitos(telefone);
