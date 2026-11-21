@@ -374,6 +374,19 @@
       return;
     }
 
+    // RF12: o servidor gera o CSV já filtrado pelo período (GET /relatorios/{tipo}/exportar).
+    // Se o back-end for uma versão sem essa rota, segue para a exportação feita aqui no navegador.
+    try {
+      await api.baixar(`/relatorios/${encodeURIComponent(tipo)}/exportar?periodo=${encodeURIComponent(periodo.value)}`, `relatorio-${tipo}.csv`);
+      mostrarStatus(`Relatório de ${tipo} exportado (${periodo.options[periodo.selectedIndex].text.toLowerCase()}).`);
+      return;
+    } catch (erro) {
+      if (!erro?.naoImplementado) {
+        mostrarStatus(erro?.mensagem || `Não foi possível exportar o relatório de ${tipo}.`, true);
+        return;
+      }
+    }
+
     try {
       let dados;
       if (tipo === "vendas") {
@@ -407,7 +420,19 @@
     }
   }
 
-  function exportarResumo() {
+  async function exportarResumo() {
+    if (api?.baixar) {
+      try {
+        await api.baixar(`/relatorios/financeiro/exportar?periodo=${encodeURIComponent(periodo.value)}`, "resumo-financeiro.csv");
+        mostrarStatus("Resumo financeiro exportado.");
+        return;
+      } catch (erro) {
+        if (!erro?.naoImplementado) {
+          mostrarStatus(erro?.mensagem || "Não foi possível exportar o resumo financeiro.", true);
+          return;
+        }
+      }
+    }
     const linhas = [
       { indicador: "Faturamento total", valor: $("faturamento").textContent },
       { indicador: "Total recebido", valor: $("recebido").textContent },

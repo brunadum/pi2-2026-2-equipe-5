@@ -123,6 +123,7 @@
             Bem-vindo ao sistema de controle Fiado Control. Veja o resumo de
             hoje.
           </p>
+          <p class="dash-status" id="dash-status" role="status" aria-live="polite" hidden></p>
         </header>
 
         <section class="metrics-grid" aria-label="Indicadores principais">
@@ -212,37 +213,11 @@
             </div>
             <div
               class="bar-chart"
+              id="bar-chart"
               role="img"
-              aria-label="Comparação ilustrativa entre vendas e pagamentos nas últimas quatro semanas"
+              aria-label="Carregando vendas e pagamentos das últimas quatro semanas"
             >
-              <div class="bar-group">
-                <div class="bars">
-                  <span class="bar bar-sales" style="height: 48%"></span
-                  ><span class="bar bar-payments" style="height: 34%"></span>
-                </div>
-                <span class="bar-label">Semana 1</span>
-              </div>
-              <div class="bar-group">
-                <div class="bars">
-                  <span class="bar bar-sales" style="height: 83%"></span
-                  ><span class="bar bar-payments" style="height: 57%"></span>
-                </div>
-                <span class="bar-label">Semana 2</span>
-              </div>
-              <div class="bar-group">
-                <div class="bars">
-                  <span class="bar bar-sales" style="height: 64%"></span
-                  ><span class="bar bar-payments" style="height: 72%"></span>
-                </div>
-                <span class="bar-label">Semana 3</span>
-              </div>
-              <div class="bar-group">
-                <div class="bars">
-                  <span class="bar bar-sales" style="height: 100%"></span
-                  ><span class="bar bar-payments" style="height: 88%"></span>
-                </div>
-                <span class="bar-label">Semana 4</span>
-              </div>
+              <p class="chart-msg">Carregando gráfico...</p>
             </div>
           </article>
         </section>
@@ -276,6 +251,8 @@
       </main>
     </div>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="../js/utils/format.js"></script>
+    <script src="../js/services/api.js"></script>
     <script src="../js/pages/dashboard.js"></script>
   </body>
 </html>

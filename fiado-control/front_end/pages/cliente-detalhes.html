@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="../css/layout.css">
   <link rel="stylesheet" href="../css/components.css">
   <link rel="stylesheet" href="../css/pages/cliente-detalhes.css">
+  <link rel="stylesheet" href="../css/autorizacao.css">
   <script src="../js/shared/auth.js"></script>
 </head>
 <body class="app-page">
@@ -60,9 +61,12 @@
         <button class="mobile-menu" id="mobile-menu" type="button" aria-label="Abrir menu" aria-expanded="false">
           <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
         </button>
-        <div>
+        <div class="page-title-wrap">
+          <a class="page-back" href="clientes.html" aria-label="Voltar para Clientes" title="Voltar para Clientes"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5M11 6l-6 6 6 6"/></svg></a>
+          <div>
           <h1>Detalhes do Cliente</h1>
           <p>Histórico de transações, parcelas e limites de crédito.</p>
+          </div>
         </div>
       </header>
 
@@ -96,6 +100,12 @@
           <a class="btn btn-outline" id="btn-limite-aprovacao" data-somente="gerente" href="cliente-limite.html">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 17a8 8 0 1 1 15 0"/><path d="m12 13 3.5-4"/><circle cx="12" cy="13.5" r="1"/></svg>Limite e aprovações
           </a>
+          <button class="btn btn-outline" type="button" id="btn-desconto" disabled>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 5 5 19"/><circle cx="7" cy="7" r="2.2"/><circle cx="17" cy="17" r="2.2"/></svg>Conceder desconto
+          </button>
+          <button class="btn btn-outline" type="button" id="btn-bloqueio" disabled>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span id="btn-bloqueio-texto">Bloquear crédito</span>
+          </button>
           <button class="btn btn-outline" type="button" id="btn-limite" disabled>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17v3Z"/><path d="m14 7 3 3"/></svg>Alterar limite
           </button>
@@ -105,7 +115,7 @@
           <h2 id="hist-titulo">Histórico financeiro</h2>
           <div class="table-wrap">
             <table class="data-table">
-              <thead><tr><th>Data</th><th>Operação</th><th>Valor</th><th>Status</th></tr></thead>
+              <thead><tr><th>Data</th><th>Operação</th><th>Valor</th><th>Status</th><th class="cell-right">Ações</th></tr></thead>
               <tbody id="historico-body"></tbody>
             </table>
           </div>
@@ -171,6 +181,64 @@
     </div>
   </div>
 
+  <div class="modal-overlay" id="modal-desconto" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="dsc-titulo">
+      <header class="modal-header">
+        <h2 id="dsc-titulo">Conceder desconto</h2>
+        <button class="icon-btn" type="button" data-close-modal aria-label="Fechar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+      </header>
+      <form id="form-desconto" novalidate>
+        <div class="form-alert" id="dsc-alerta" role="alert" hidden></div>
+        <p class="field-hint" id="dsc-carregando" hidden>Carregando parcelas…</p>
+        <p class="field-hint" id="dsc-sem-parcelas" hidden>Este cliente não possui valores em aberto.</p>
+        <div id="dsc-campos">
+          <div class="form-field">
+            <label for="dsc-parcela">Parcela</label>
+            <select id="dsc-parcela" data-autofocus></select>
+          </div>
+          <p class="pay-saldo" id="dsc-saldo"></p>
+          <div class="form-field">
+            <label for="dsc-valor">Valor do desconto <span class="req" aria-hidden="true">*</span></label>
+            <input id="dsc-valor" type="text" inputmode="numeric" placeholder="R$ 0,00" autocomplete="off" required aria-required="true" aria-describedby="dsc-valor-erro">
+            <p class="field-error" id="dsc-valor-erro" hidden></p>
+          </div>
+          <div class="form-field">
+            <label for="dsc-motivo">Motivo <span class="req" aria-hidden="true">*</span></label>
+            <textarea id="dsc-motivo" rows="2" maxlength="200" placeholder="Ex.: Cliente antigo, acordo de pagamento" required aria-required="true" aria-describedby="dsc-motivo-erro"></textarea>
+            <p class="field-error" id="dsc-motivo-erro" hidden></p>
+          </div>
+        </div>
+        <footer class="modal-footer">
+          <button type="button" class="btn btn-outline" data-close-modal>Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="dsc-enviar" disabled>Conceder desconto</button>
+        </footer>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modal-operacao" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="op-titulo">
+      <header class="modal-header">
+        <h2 id="op-titulo">Cancelar venda</h2>
+        <button class="icon-btn" type="button" data-close-modal aria-label="Fechar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+      </header>
+      <form id="form-operacao" novalidate>
+        <div class="form-alert" id="op-alerta" role="alert" hidden></div>
+        <p class="op-resumo" id="op-resumo"></p>
+        <div class="form-field">
+          <label for="op-motivo">Motivo <span class="req" aria-hidden="true">*</span></label>
+          <textarea id="op-motivo" rows="3" maxlength="200" placeholder="Ex.: Venda lançada por engano" required aria-required="true" aria-describedby="op-motivo-erro op-contador" data-autofocus></textarea>
+          <p class="field-error" id="op-motivo-erro" hidden></p>
+          <p class="field-hint" id="op-contador">0/200 caracteres</p>
+        </div>
+        <footer class="modal-footer">
+          <button type="button" class="btn btn-outline" data-close-modal>Voltar</button>
+          <button type="submit" class="btn btn-danger" id="op-enviar">Cancelar venda</button>
+        </footer>
+      </form>
+    </div>
+  </div>
+
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <script src="../js/config.js"></script>
   <script src="../js/utils/format.js"></script>
@@ -179,6 +247,9 @@
   <script src="../js/shared/ui.js"></script>
   <script src="../js/services/api.js"></script>
   <script src="../js/services/clientes.js"></script>
+  <script src="../js/services/operacoes.js"></script>
+  <script src="../js/services/codigo-gerente.js"></script>
+  <script src="../js/shared/autorizacao.js"></script>
   <script src="../js/pages/cliente-detalhes.js"></script>
 </body>
 </html>

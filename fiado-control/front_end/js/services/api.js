@@ -35,7 +35,7 @@
     }
   }
 
-  async function request(caminho, { method = "GET", body, signal } = {}) {
+  async function request(caminho, { method = "GET", body, signal, headers: extras } = {}) {
     // Sem sessão válida (ou token vencido): volta para o login antes de chamar a API.
     if (FC.auth && !FC.auth.logado()) FC.auth.paraLogin(FC.auth.token() ? "expirada" : "login");
     let resposta;
@@ -50,6 +50,7 @@
                 Authorization: `Bearer ${sessionStorage.getItem("token")}`,
               }
             : {}),
+          ...(extras || {}),
         },
         body: body !== undefined ? JSON.stringify(body) : undefined,
         signal,
@@ -97,5 +98,40 @@
     return dados;
   }
 
-  FC.api = { request, ApiError };
+  // Baixa um arquivo (ex.: CSV de relatório) enviando o token; dispara o download no navegador.
+  async function baixar(caminho, nomeArquivo) {
+    if (FC.auth && !FC.auth.logado()) FC.auth.paraLogin(FC.auth.token() ? "expirada" : "login");
+    let resposta;
+    try {
+      resposta = await fetch(baseUrl() + caminho, {
+        headers: sessionStorage.getItem("token") ? { Authorization: `Bearer ${sessionStorage.getItem("token")}` } : {},
+      });
+    } catch {
+      throw new ApiError({ rede: true, mensagem: "Não foi possível conectar ao servidor. Verifique se o back-end está em execução." });
+    }
+    if (!resposta.ok) {
+      let dados = null;
+      try { dados = JSON.parse(await resposta.text()); } catch { /* corpo não-JSON */ }
+      if (resposta.status === 401 && FC.auth && FC.auth.token()) FC.auth.sessaoExpirada();
+      throw new ApiError({
+        status: resposta.status,
+        codigo: dados?.erro ?? (resposta.status === 403 ? "acesso_negado" : null),
+        mensagem: resposta.status === 403
+          ? "Você não tem permissão para realizar esta ação."
+          : (dados?.mensagem ?? `O servidor respondeu com erro ${resposta.status}.`),
+        dados,
+      });
+    }
+    const blob = await resposta.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = nomeArquivo;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  FC.api = { request, baixar, ApiError };
 })();

@@ -83,7 +83,9 @@
         <button class="settings-tab active" type="button" data-tab="cobranca" role="tab" aria-selected="true">Cobrança e Juros</button>
         <button class="settings-tab" type="button" data-tab="vendas" role="tab" aria-selected="false">Configurações de venda</button>
         <button class="settings-tab" type="button" data-tab="operacoes" role="tab" aria-selected="false">Operações autorizadas</button>
+        <button class="settings-tab" type="button" data-tab="seguranca" role="tab" aria-selected="false">Código do gerente</button>
         <a class="settings-tab" href="usuarios.html" role="tab" aria-selected="false">Usuários</a>
+        <a class="settings-tab" href="auditoria.html" role="tab" aria-selected="false">Histórico de auditoria</a>
       </div>
 
       <form class="settings-panel" id="settings-form">
@@ -130,6 +132,32 @@
           <button class="save-button" id="save-settings" type="submit">Salvar configurações</button>
         </div>
       </form>
+
+      <!-- Código do gerente: fora do formulário principal, com salvamento próprio. -->
+      <section class="settings-panel" data-section="seguranca" aria-labelledby="codigo-heading" hidden>
+        <h2 id="codigo-heading">Código do gerente</h2>
+        <p class="section-description">Código de 6 números que autoriza operações restritas: cadastrar usuário e, para funcionários, cancelar venda, estornar pagamento e alterar limite. Só quem sabe o código consegue liberar a operação.</p>
+        <p class="settings-status" id="codigo-aviso" hidden></p>
+        <form id="codigo-form" novalidate>
+          <p class="codigo-situacao" id="codigo-situacao" role="status">Verificando…</p>
+          <div class="settings-grid">
+            <label for="codigo-atual" id="codigo-atual-rotulo" hidden>Código atual
+              <input id="codigo-atual" type="password" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="••••••">
+            </label>
+            <label for="codigo-novo">Novo código (6 números)
+              <input id="codigo-novo" type="password" inputmode="numeric" maxlength="6" autocomplete="new-password" placeholder="••••••">
+            </label>
+            <label for="codigo-novo2">Repita o novo código
+              <input id="codigo-novo2" type="password" inputmode="numeric" maxlength="6" autocomplete="new-password" placeholder="••••••">
+            </label>
+          </div>
+          <p class="codigo-erro" id="codigo-erro" role="alert" hidden></p>
+          <div class="settings-footer">
+            <p id="codigo-msg" role="status" aria-live="polite">Guarde o código em local seguro. Ele não é exibido depois de salvo.</p>
+            <button class="save-button" id="codigo-salvar" type="submit">Salvar código</button>
+          </div>
+        </form>
+      </section>
     </main>
   </div>
 
@@ -137,6 +165,7 @@
 
   <script src="../js/config.js"></script>
   <script src="../js/services/api.js"></script>
+  <script src="../js/services/codigo-gerente.js"></script>
   <script src="../js/pages/configuracoes.js"></script>
 </body>
 </html>

@@ -1,0 +1,72 @@
+/* Telas de autorização do gerente (sobreposição em tela cheia). Usado por js/shared/autorizacao.js. */
+.auth-overlay {
+  position: fixed; inset: 0; z-index: 200; display: flex; flex-direction: column;
+  color: #111b30; background: #f8fafc;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+}
+.auth-topo { display: flex; justify-content: space-between; align-items: flex-start; padding: 20px 24px; }
+.auth-marca strong { display: block; font-size: 15px; font-weight: 800; letter-spacing: -.2px; }
+.auth-marca small { display: block; margin-top: 2px; color: #667b9b; font-size: 10px; }
+.auth-selo { display: inline-flex; align-items: center; gap: 6px; color: #52627d; font-size: 12px; font-weight: 500; }
+.auth-selo svg { width: 14px; height: 14px; }
+.auth-centro { flex: 1; display: grid; place-items: center; padding: 16px; overflow-y: auto; }
+.auth-card {
+  width: min(100%, 400px); padding: 28px 24px 24px; text-align: center;
+  background: #fff; border: 1px solid #e3eaf4; border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(15, 35, 70, .08);
+}
+.auth-icone {
+  display: inline-grid; place-items: center; width: 44px; height: 44px; margin-bottom: 14px;
+  color: #2862f6; background: #eaf2ff; border-radius: 12px;
+}
+.auth-icone svg { width: 22px; height: 22px; }
+.auth-icone-aviso { color: #e07a10; background: #fff4e5; }
+.auth-card h1 { margin: 0 0 8px; font-size: 22px; line-height: 1.2; font-weight: 800; letter-spacing: -.5px; }
+.auth-texto { margin: 0 0 22px; color: #667b9b; font-size: 12.5px; line-height: 1.55; }
+.auth-card form { text-align: left; }
+.auth-label { display: block; margin-bottom: 7px; font-size: 12px; font-weight: 700; color: #1f2b40; }
+.auth-campo {
+  position: relative; display: flex; align-items: center; height: 42px; padding: 0 12px; gap: 9px;
+  background: #fff; border: 1px solid #dce5f1; border-radius: 9px;
+  transition: border-color .15s, box-shadow .15s, background .15s;
+}
+.auth-campo:focus-within { border-color: #7aa5ff; box-shadow: 0 0 0 3px rgba(40, 98, 246, .12); }
+.auth-campo-icone { display: grid; color: #8393ad; }
+.auth-campo-icone svg { width: 16px; height: 16px; }
+.auth-campo input {
+  flex: 1; min-width: 0; height: 100%; padding: 0; border: 0; outline: 0; background: transparent;
+  color: #111b30; font: inherit; font-size: 13px; letter-spacing: .5px;
+}
+.auth-campo input::placeholder { color: #94a6c0; letter-spacing: 0; }
+.auth-campo-alerta { display: grid; color: #e5484d; }
+.auth-campo-alerta[hidden] { display: none; }
+.auth-campo-alerta svg { width: 16px; height: 16px; }
+.auth-campo.tem-erro { background: #fff1f1; border-color: #e5484d; }
+.auth-campo.tem-erro:focus-within { box-shadow: 0 0 0 3px rgba(229, 72, 77, .14); }
+.auth-erro { margin: 8px 0 0; color: #d92d20; font-size: 11.5px; font-weight: 600; line-height: 1.4; }
+.auth-erro[hidden] { display: none; }
+.auth-dica { margin: 8px 0 18px; color: #7b8aa3; font-size: 10.5px; }
+.auth-btn {
+  display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 40px;
+  margin-top: 10px; border-radius: 8px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+  transition: background .15s, border-color .15s, opacity .15s;
+}
+.auth-btn svg { width: 15px; height: 15px; }
+.auth-btn-primario { color: #fff; background: #2862f6; border: 1px solid #2862f6; }
+.auth-btn-primario:hover:not(:disabled) { background: #1f53da; border-color: #1f53da; }
+.auth-btn-secundario { color: #1f2b40; background: #fff; border: 1px solid #dce5f1; }
+.auth-btn-secundario:hover { background: #f6f9fd; border-color: #b8c9e2; }
+.auth-btn:disabled { opacity: .55; cursor: not-allowed; }
+.auth-btn:focus-visible, .auth-link:focus-visible { outline: 2px solid #2862f6; outline-offset: 2px; }
+.auth-btn.carregando { position: relative; color: transparent; pointer-events: none; }
+.auth-btn.carregando svg { opacity: 0; }
+.auth-btn.carregando::after {
+  content: ""; position: absolute; width: 16px; height: 16px; border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, .45); border-top-color: #fff; animation: auth-giro .7s linear infinite;
+}
+.auth-link { display: block; margin: 14px auto 0; padding: 4px 8px; border: 0; background: none; color: #667b9b; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+.auth-link:hover { color: #1f2b40; text-decoration: underline; }
+.auth-rodape { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 18px; color: #7b8aa3; font-size: 10.5px; }
+.auth-rodape svg { width: 12px; height: 12px; }
+@keyframes auth-giro { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .auth-btn.carregando::after { animation-duration: 2s; } }

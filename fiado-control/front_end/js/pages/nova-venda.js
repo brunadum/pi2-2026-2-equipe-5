@@ -283,6 +283,7 @@
 
   // --------------------------------------------------------------- produtos
 
+  FC.produtos.carregar();
   FC.produtoModal.init({
     aoSalvar(item, indice) {
       if (indice != null) {

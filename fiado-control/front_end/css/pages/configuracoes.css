@@ -267,3 +267,12 @@
     width: 100%;
   }
 }
+
+/* Código do gerente */
+.codigo-situacao { margin: 0 0 20px; padding: 10px 14px; border-radius: 8px; color: var(--muted); background: #f3f6fb; font-size: 13px; font-weight: 600; }
+.codigo-situacao.ok { color: #0b7a3b; background: #effcf4; }
+.codigo-situacao.pendente { color: #8a5a00; background: #fff6dc; }
+.codigo-situacao.erro { color: #b42318; background: #fff0f0; }
+.codigo-erro { margin: 14px 0 0; color: #b42318; font-size: 13px; font-weight: 600; }
+.codigo-erro[hidden] { display: none; }
+[data-section="seguranca"] .settings-status { margin: 0 0 14px; }

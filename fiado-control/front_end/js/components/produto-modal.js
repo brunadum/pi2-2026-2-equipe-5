@@ -134,14 +134,23 @@
 
     const item = { nome: el.nome.value.trim(), preco: masks.valorMoeda(el.preco), qtd: lerQtd() };
     const jaSalvo = FC.produtos.porNome(item.nome);
-    if (el.salvar.checked || jaSalvo) {
-      // Atualiza o preço do catálogo só quando o produto é novo ou o usuário pediu para salvar.
-      if (el.salvar.checked || !jaSalvo) FC.produtos.salvar({ nome: item.nome, preco: item.preco });
-      FC.produtos.registrarUso(item.nome);
-    }
+    const gravar = el.salvar.checked || !jaSalvo;
+    if (el.salvar.checked || jaSalvo) FC.produtos.registrarUso(item.nome);
     const indice = editando ? editando.indice : null;
     modal.fechar();
     opcoes.aoSalvar(item, indice);
+    // O catálogo é gravado no servidor depois de adicionar o item: uma falha aqui nunca bloqueia a venda.
+    // Produto novo, ou preço novo quando o usuário pediu para salvar (só o gerente pode alterar preço).
+    if (gravar && (el.salvar.checked || !jaSalvo)) {
+      FC.produtos.salvar({ nome: item.nome, preco: item.preco }).catch((e) => {
+        FC.ui.toast(
+          e && e.status === 403
+            ? "O item entrou na venda, mas só o gerente pode alterar o preço no catálogo."
+            : "O item entrou na venda, mas não foi possível salvá-lo no catálogo.",
+          "erro",
+        );
+      });
+    }
   }
 
   function limpar() {
@@ -171,6 +180,8 @@
     pintarChips();
     atualizar();
     modal.abrir();
+    // Atualiza o catálogo compartilhado (outro usuário pode ter cadastrado produtos) sem travar a abertura.
+    FC.produtos.carregar().then(() => { if (!document.getElementById("modal-produto").hidden) pintarChips(); });
   }
 
   function init(config = {}) {

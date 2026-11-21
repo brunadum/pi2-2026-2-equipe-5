@@ -25,15 +25,20 @@ A camada a seguir é responsável por:
 front_end/
 │
 ├── README.md
-├── Dockerfile
-├── .dockerignore
-├── index.html
+├── Dockerfile            imagem nginx (usa nginx.conf)
+├── nginx.conf            serve os arquivos e mostra 404.html nas rotas que não existem
+├── 404.html              página "ERROR 404" (autossuficiente)
+├── index.html            redireciona para pages/login.html
 │
-├── css/
-│   └── style.css
-│
+├── pages/                uma página HTML por tela
+├── css/                  global.css, layout.css, components.css, autorizacao.css e css/pages/*
 └── js/
-    └── script.js
+    ├── config.js         URL da API
+    ├── shared/           auth.js (sessão/perfil), ui.js (toast/modal), autorizacao.js (código do gerente)
+    ├── services/         chamadas à API (api, clientes, usuarios, operacoes, auditoria, codigo-gerente...)
+    ├── pages/            um script por tela
+    ├── components/       busca de cliente, cadastro de cliente, modal de produto
+    └── utils/            format, masks, validators
 ```
 
 ## Docker
@@ -91,8 +96,9 @@ Frontend preparado para execução em container e integração com o backend.\n
 
 A tela inicial do painel está em `pages/dashboard.html`, com estilos em
 `css/pages/dashboard.css` e interações em `js/pages/dashboard.js`.
-Os indicadores e registros atuais são demonstrativos; a integração com a API
-deve ser feita posteriormente na camada `js/services/`.
+Desde a Sprint 5 os quatro indicadores, a lista **Próximas parcelas a vencer** (15 dias) e o gráfico
+**Vendas x Pagamentos** (4 últimas semanas) vêm do back-end (`GET /dashboard?periodo=mes&dias=15`):
+nada é número fixo. Se a API falhar, os campos mostram "—" e há um botão **Tentar novamente**.
 
 Para testar com Docker, execute os comandos na pasta `front_end`:
 ```bash
@@ -149,7 +155,7 @@ Observações para o back-end:
 Arquivos novos compartilhados:
 
 ```text
-js/services/produtos.js          catálogo de produtos (localStorage)
+js/services/produtos.js          catálogo de produtos (GET/POST/PUT /produtos; localStorage só como reserva)
 js/components/cliente-busca.js   campo de busca de cliente (nome, CPF ou telefone) com sugestões
 js/components/produto-modal.js   modal "Adicionar produto" (máscara de R$, quantidade, catálogo)
 ```
@@ -160,7 +166,7 @@ js/components/produto-modal.js   modal "Adicionar produto" (máscara de R$, quan
 
 O back-end atual não tem estas rotas/tabelas, então o front usa o fallback local (com aviso amarelo):
 
-* **Produtos e itens da venda** – `POST /vendas` só recebe o valor total (já com desconto).
+* **Itens da venda** – `POST /vendas` só recebe o valor total (já com desconto). O catálogo de produtos, esse sim, vem de `/produtos`.
 * **Desconto** e **forma de pagamento** da baixa – não existem no contrato.
 * **Editar cliente** (`PUT /clientes/{id}`) e **excluir cliente** (`DELETE /clientes/{id}`).
 * **Histórico** (`GET /clientes/{id}/historico`).
@@ -211,10 +217,11 @@ Os dois comprovantes usam `js/pages/comprovante.js` e `js/services/comprovantes.
 
 ### Integração com a API
 
-- **Usuários**: `GET/POST /usuarios`, `PUT /usuarios/{id}` e `PUT /usuarios/{id}/inativar` (rotas 25 a 28 do contrato).
-  Perfis da tela → contrato: Administrador = `gerente`; Operador Financeiro e Vendedor(a) = `funcionario`
-  (com `permissoes` diferentes). A senha é enviada em `senha` (obrigatória no cadastro, opcional na edição).
-  Se o back-end responder 404/405 (rota inexistente) ou 401 (exige login), a tela usa o navegador e mostra um aviso amarelo.
+- **Usuários**: `GET /usuarios` (devolve `{ "usuarios": [...] }`), `POST /usuarios` e `PUT /usuarios/{id}`.
+  Inativar e reativar são `PUT /usuarios/{id}` com `{ "ativo": false | true }`. O back-end só conhece dois perfis:
+  `ADMIN` (Administrador) e `COMUM` (Funcionário). E-mail repetido volta como `409 email_duplicado`.
+  CPF e nome de usuário do modal "Cadastro de Usuário" seguem no pedido, mas o back-end ainda não os grava.
+  Se o back-end responder 404/405 (rota inexistente), a tela usa o navegador e mostra um aviso amarelo.
 - **Comprovantes**: são montados com o que o back-end devolve (`POST /vendas` → id e parcelas; `POST /pagamentos` → status e saldos)
   mais os dados da tela (produtos, desconto, forma de pagamento). Ficam guardados no navegador (`fiadoControl.comprovantes.v1`,
   últimos 80). O back-end ainda não guarda itens da venda nem a forma de pagamento; quando guardar, basta ler esses dados em
@@ -240,5 +247,27 @@ Os dois comprovantes usam `js/pages/comprovante.js` e `js/services/comprovantes.
 | Excluir cliente | sim | não (botão some) |
 | Limite e aprovações (`cliente-limite.html`), Dashboard, Relatórios, Configurações, Usuários | sim | não (menu some; abrir direto mostra "sem permissão") |
 
-A matriz segue a coluna *Perfil* do `docs/api/contratoAPI.md`. Esconder telas aqui é só conforto: quem decide é o back-end (403).
+A matriz segue a coluna *Perfil* do `docs/api/contratoAPI.md`. A página `auditoria.html` também é só do gerente. Esconder telas aqui é só conforto: quem decide é o back-end (403).
 Para mudar quem vê o quê, edite `PAGINAS_GERENTE` e `ACOES_GERENTE` em `js/shared/auth.js`.
+
+## Sprint 5 (RF08, RF10, RF11, RF12, RF13)
+
+Detalhes completos, contrato proposto para o back-end e o que ainda falta: `docs/front-end/sprint5-front.md`.
+
+| Recurso | Onde | Rota usada |
+| --- | --- | --- |
+| Cancelar venda e estornar pagamento (motivo obrigatório) | **Detalhes do cliente** → coluna *Ações* do histórico | `POST /vendas/{id}/cancelar`, `POST /pagamentos/{id}/estornar` |
+| Conceder desconto em parcela | **Detalhes do cliente** → botão *Conceder desconto* | `POST /pagamentos/{id_parcela}/desconto` |
+| Histórico de auditoria (filtros por operação, usuário e período) | Configurações → aba **Histórico de auditoria** (`pages/auditoria.html`) | `GET /auditoria` (o back-end ainda não tem; a tela avisa e não inventa dados) |
+| Código do gerente | Configurações → aba **Código do gerente** | `GET/PUT /configuracoes/codigo-gerente`, `POST /autorizacoes/gerente` (propostas) |
+| Telas "Usuário sem permissão" e "Autorização do gerente" | abrem sozinhas: funcionário em cancelar/estornar/desconto/alterar limite; sempre no cadastro de usuário | — |
+| Exportar relatórios em CSV (respeita o período) | **Relatórios** | `GET /relatorios/{tipo}/exportar?periodo=` |
+| Página 404 | `404.html` (nginx / Vercel a entregam sozinhos) | — |
+| Seta de voltar | Detalhes do cliente, Limite e aprovações, Usuários, Auditoria | — |
+
+Observações:
+
+* Enquanto o back-end não tiver as rotas do **código do gerente**, o código fica guardado só no navegador (hash SHA-256 com sal,
+  aviso na tela). Serve para demonstrar o fluxo; **não é segurança real**, e o servidor continua recusando (403) quem não é gerente.
+* No Live Server do VS Code a página 404 não é entregue sozinha (aparece "Cannot GET"); abra `http://127.0.0.1:5500/404.html` para vê-la.
+  No Docker (nginx) e no Vercel ela funciona em qualquer endereço inexistente.

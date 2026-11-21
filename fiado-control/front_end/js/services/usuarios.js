@@ -1,8 +1,11 @@
-// Serviço de usuários da equipe (namespace global FC.usuarios) — rotas 25 a 28 do contrato.
+// Serviço de usuários da equipe (namespace global FC.usuarios) — rotas /usuarios do back-end.
 //
-// API primeiro: GET/POST /usuarios, PUT /usuarios/{id}, PUT /usuarios/{id}/inativar.
-// Se o back-end ainda não tiver essas rotas (404 sem corpo / 405) ou exigir login (401),
-// os dados ficam guardados neste navegador (localStorage) e a tela avisa o usuário.
+// API primeiro:
+//   GET  /usuarios              -> { usuarios: [{ id_usuario, nome, email, perfil, ativo }] }
+//   POST /usuarios              -> cria (perfil ADMIN | COMUM; 409 email_duplicado)
+//   PUT  /usuarios/{id}         -> altera nome, e-mail, perfil, senha e "ativo" (inativar/reativar)
+// Se o back-end for uma versão antiga, sem essas rotas (404 sem corpo / 405), os dados ficam neste
+// navegador (localStorage) e a tela avisa o usuário.
 (function () {
   const FC = (window.FC = window.FC || {});
   const { request, ApiError } = FC.api;
@@ -10,29 +13,19 @@
   const CHAVE = "fiadoControl.usuarios.v1";
   const state = { local: false, motivo: "" };
 
-  // Perfis exibidos na tela -> perfil + permissões do contrato (perfil: gerente | funcionario).
+  // O back-end só conhece dois perfis: ADMIN (gerente) e COMUM (funcionário).
   const PERFIS = {
     administrador: {
-      rotulo: "Administrador", perfil: "gerente",
-      descricao: "Acesso total: vendas, pagamentos, relatórios, configurações e usuários.",
-      permissoes: { cancelar_vendas: true, estornar_pagamentos: true, conceder_descontos: true },
+      rotulo: "Administrador", perfil: "ADMIN",
+      descricao: "Acesso total: vendas, pagamentos, cancelamentos, relatórios, configurações e usuários.",
     },
-    financeiro: {
-      rotulo: "Operador Financeiro", perfil: "funcionario",
-      descricao: "Registra pagamentos e baixas, pode estornar pagamentos. Não altera configurações.",
-      permissoes: { cancelar_vendas: false, estornar_pagamentos: true, conceder_descontos: false },
-    },
-    vendedor: {
-      rotulo: "Vendedor(a)", perfil: "funcionario",
-      descricao: "Cadastra clientes e registra vendas. Sem cancelamentos, estornos ou descontos.",
-      permissoes: { cancelar_vendas: false, estornar_pagamentos: false, conceder_descontos: false },
+    funcionario: {
+      rotulo: "Funcionário(a)", perfil: "COMUM",
+      descricao: "Cadastra clientes, registra vendas e pagamentos. Ações restritas pedem o código do gerente.",
     },
   };
 
-  function chavePerfil(u) {
-    if (u.perfil === "gerente" || u.perfil === "ADMIN") return "administrador";
-    return u.permissoes?.estornar_pagamentos ? "financeiro" : "vendedor";
-  }
+  const chavePerfil = (u) => (["ADMIN", "GERENTE", "gerente"].includes(String(u.perfil)) ? "administrador" : "funcionario");
 
   function normalizar(u) {
     const chave = chavePerfil(u);
@@ -54,29 +47,30 @@
     } catch { /* ignora */ }
     return {
       seq: 2,
-      lista: [{ id_usuario: "L1", nome: "Edmilson Filho", email: "gerente@loja.com", perfil: "gerente", ativo: true, permissoes: PERFIS.administrador.permissoes }],
+      lista: [{ id_usuario: "L1", nome: "Administrador", email: "admin@teste.com", perfil: "ADMIN", ativo: true }],
     };
   }
   function salvarLocal(s) { try { localStorage.setItem(CHAVE, JSON.stringify(s)); } catch { /* indisponível */ } }
 
-  const usaLocal = (e) => e instanceof ApiError && (e.naoImplementado || e.status === 401);
-  function marcarLocal(e) {
+  const usaLocal = (e) => e instanceof ApiError && e.naoImplementado;
+  function marcarLocal() {
     state.local = true;
-    state.motivo = e.status === 401
-      ? "O back-end exige login para listar usuários e o front ainda não envia o token. Os usuários estão sendo guardados apenas neste navegador."
-      : "O back-end ainda não possui as rotas de usuários (/usuarios). Os usuários estão sendo guardados apenas neste navegador até a integração.";
+    state.motivo = "O back-end ainda não possui as rotas de usuários (/usuarios). Os usuários estão sendo guardados apenas neste navegador até a integração.";
   }
 
-  function emailEmUso(lista, email, ignorarId) {
-    return lista.some((u) => String(u.id_usuario) !== String(ignorarId) && u.email.toLowerCase() === email.toLowerCase());
-  }
-  const erroEmail = () => new ApiError({ status: 422, codigo: "email_ja_cadastrado", mensagem: "Já existe um usuário com este e-mail." });
+  const emailEmUso = (lista, email, ignorarId) =>
+    lista.some((u) => String(u.id_usuario) !== String(ignorarId) && u.email.toLowerCase() === email.toLowerCase());
+  const erroEmail = () => new ApiError({ status: 409, codigo: "email_duplicado", mensagem: "Já existe um usuário cadastrado com este e-mail." });
   const erroNaoEncontrado = () => new ApiError({ status: 404, codigo: "usuario_nao_encontrado", mensagem: "Usuário não encontrado." });
 
   function corpo(dados) {
-    const p = PERFIS[dados.chavePerfil];
-    const c = { nome: dados.nome.trim(), email: dados.email.trim().toLowerCase(), perfil: p.perfil, permissoes: { ...p.permissoes } };
+    const c = {
+      nome: dados.nome.trim(),
+      email: dados.email.trim().toLowerCase(),
+      perfil: PERFIS[dados.chavePerfil].perfil,
+    };
     if (dados.senha) c.senha = dados.senha;
+    // Ainda não são gravados pelo back-end; seguem no pedido para quando ele passar a aceitá-los.
     if (dados.cpf) c.cpf = dados.cpf.replace(/\D/g, "");
     if (dados.nomeUsuario) c.nome_usuario = dados.nomeUsuario.trim();
     return c;
@@ -85,25 +79,29 @@
   // ------------------------------------------------------------------ API
   async function listar() {
     try {
-      const lista = await request("/usuarios");
+      const r = await request("/usuarios");
       state.local = false;
+      const lista = Array.isArray(r) ? r : r?.usuarios;
       return (Array.isArray(lista) ? lista : []).map(normalizar);
     } catch (e) {
       if (!usaLocal(e)) throw e;
-      marcarLocal(e);
+      marcarLocal();
       return lerLocal().lista.map(normalizar);
     }
   }
 
-  async function salvar(id, dados) {
+  async function salvar(id, dados, { autorizacao } = {}) {
     const body = corpo(dados);
     if (!state.local) {
       try {
-        const r = await request(id ? `/usuarios/${encodeURIComponent(id)}` : "/usuarios", { method: id ? "PUT" : "POST", body });
+        const r = await request(id ? `/usuarios/${encodeURIComponent(id)}` : "/usuarios", {
+          method: id ? "PUT" : "POST", body,
+          headers: autorizacao ? { "X-Autorizacao-Gerente": autorizacao } : undefined,
+        });
         return normalizar(r);
       } catch (e) {
         if (!usaLocal(e)) throw e;
-        marcarLocal(e);
+        marcarLocal();
       }
     }
     const s = lerLocal();
@@ -111,32 +109,38 @@
     if (id) {
       const u = s.lista.find((x) => String(x.id_usuario) === String(id));
       if (!u) throw erroNaoEncontrado();
-      Object.assign(u, { nome: body.nome, email: body.email, perfil: body.perfil, permissoes: body.permissoes });
+      Object.assign(u, { nome: body.nome, email: body.email, perfil: body.perfil });
       salvarLocal(s);
       return normalizar(u);
     }
-    const novo = { id_usuario: `L${s.seq++}`, nome: body.nome, cpf: body.cpf, nome_usuario: body.nome_usuario, email: body.email, perfil: body.perfil, ativo: true, permissoes: body.permissoes };
+    const novo = { id_usuario: `L${s.seq++}`, nome: body.nome, cpf: body.cpf, nome_usuario: body.nome_usuario, email: body.email, perfil: body.perfil, ativo: true };
     s.lista.push(novo);
     salvarLocal(s);
     return normalizar(novo);
   }
 
-  async function inativar(id) {
+  // Inativar e reativar usam a mesma rota de edição (PUT /usuarios/{id} com { ativo }).
+  async function alterarSituacao(id, ativo) {
     if (!state.local) {
       try {
-        await request(`/usuarios/${encodeURIComponent(id)}/inativar`, { method: "PUT" });
+        await request(`/usuarios/${encodeURIComponent(id)}`, { method: "PUT", body: { ativo } });
         return;
       } catch (e) {
         if (!usaLocal(e)) throw e;
-        marcarLocal(e);
+        marcarLocal();
       }
     }
     const s = lerLocal();
     const u = s.lista.find((x) => String(x.id_usuario) === String(id));
     if (!u) throw erroNaoEncontrado();
-    u.ativo = false;
+    u.ativo = ativo;
     salvarLocal(s);
   }
 
-  FC.usuarios = { PERFIS, listar, salvar, inativar, aviso: () => (state.local ? state.motivo : "") };
+  FC.usuarios = {
+    PERFIS, listar, salvar,
+    inativar: (id) => alterarSituacao(id, false),
+    reativar: (id) => alterarSituacao(id, true),
+    aviso: () => (state.local ? state.motivo : ""),
+  };
 })();

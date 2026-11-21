@@ -13,7 +13,7 @@
 
   // Páginas exclusivas do gerente (contrato da API: dashboard, limite, exceções, usuários, configurações, relatórios).
   const PAGINAS_GERENTE = [
-    "dashboard.html", "relatorios-dashboard.html", "configuracoes.html", "usuarios.html", "cliente-limite.html",
+    "dashboard.html", "relatorios-dashboard.html", "configuracoes.html", "usuarios.html", "auditoria.html", "cliente-limite.html",
   ];
   // Ações exclusivas do gerente usadas por quem monta a tela (FC.auth.pode("limite")).
   const ACOES_GERENTE = ["limite", "excluir_cliente", "usuarios", "dashboard", "configuracoes", "relatorios"];

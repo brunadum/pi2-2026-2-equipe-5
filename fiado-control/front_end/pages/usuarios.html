@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="../css/components.css">
   <link rel="stylesheet" href="../css/pages/configuracoes.css">
   <link rel="stylesheet" href="../css/pages/usuarios.css">
+  <link rel="stylesheet" href="../css/autorizacao.css">
   <script src="../js/shared/auth.js"></script>
 </head>
 <body class="app-page">
@@ -72,9 +73,12 @@
     <main class="main-area">
       <header class="page-header">
         <button class="mobile-menu" id="mobile-menu" type="button" aria-label="Abrir menu" aria-expanded="false">☰</button>
-        <div>
+        <div class="page-title-wrap">
+          <a class="page-back" href="configuracoes.html" aria-label="Voltar para Configurações" title="Voltar para Configurações"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5M11 6l-6 6 6 6"/></svg></a>
+          <div>
           <h1>Usuários</h1>
           <p>Controle permissões de administradores do sistema.</p>
+          </div>
         </div>
       </header>
 
@@ -82,7 +86,9 @@
         <a class="settings-tab" href="configuracoes.html" role="tab" aria-selected="false">Cobrança e Juros</a>
         <a class="settings-tab" href="configuracoes.html#vendas" role="tab" aria-selected="false">Configurações de venda</a>
         <a class="settings-tab" href="configuracoes.html#operacoes" role="tab" aria-selected="false">Operações autorizadas</a>
+        <a class="settings-tab" href="configuracoes.html#seguranca" role="tab" aria-selected="false">Código do gerente</a>
         <a class="settings-tab active" href="usuarios.html" role="tab" aria-selected="true">Usuários</a>
+        <a class="settings-tab" href="auditoria.html" role="tab" aria-selected="false">Histórico de auditoria</a>
       </div>
 
       <div class="notice" id="aviso-local" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5h.01"/></svg><span id="aviso-local-texto"></span></div>
@@ -213,6 +219,8 @@
   <script src="../js/shared/ui.js"></script>
   <script src="../js/services/api.js"></script>
   <script src="../js/services/usuarios.js"></script>
+  <script src="../js/services/codigo-gerente.js"></script>
+  <script src="../js/shared/autorizacao.js"></script>
   <script src="../js/pages/usuarios.js"></script>
 </body>
 </html>

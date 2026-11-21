@@ -158,6 +158,9 @@
     document.querySelectorAll("[data-section]").forEach((secao) => {
       secao.hidden = secao.dataset.section !== abaSelecionada.dataset.tab;
     });
+    // O código do gerente tem painel e botão próprios; o formulário de taxas fica oculto nessa aba.
+    form.hidden = abaSelecionada.dataset.tab === "seguranca";
+    if (abaSelecionada.dataset.tab === "seguranca") Promise.resolve().then(carregarCodigo); // adia: `cod` é definido mais abaixo
   }
 
   tabs.forEach((aba) => {
@@ -217,6 +220,69 @@
       ? "Salvo localmente, sem sincronização com o banco de dados."
       : "Não foi possível salvar no navegador.";
     saveButton.disabled = false;
+  });
+
+  // ------------------------------------------------------- código do gerente
+  const cod = {
+    form: document.getElementById("codigo-form"),
+    situacao: document.getElementById("codigo-situacao"),
+    aviso: document.getElementById("codigo-aviso"),
+    atualRotulo: document.getElementById("codigo-atual-rotulo"),
+    atual: document.getElementById("codigo-atual"),
+    novo: document.getElementById("codigo-novo"),
+    novo2: document.getElementById("codigo-novo2"),
+    erro: document.getElementById("codigo-erro"),
+    msg: document.getElementById("codigo-msg"),
+    salvar: document.getElementById("codigo-salvar"),
+  };
+  let codigoDefinido = false;
+
+  const erroCodigo = (texto) => { cod.erro.textContent = texto || ""; cod.erro.hidden = !texto; };
+  [cod.atual, cod.novo, cod.novo2].forEach((campo) => campo.addEventListener("input", () => {
+    campo.value = campo.value.replace(/\D/g, "");
+    erroCodigo("");
+  }));
+
+  async function carregarCodigo() {
+    cod.situacao.textContent = "Verificando…";
+    cod.situacao.className = "codigo-situacao";
+    try {
+      codigoDefinido = await window.FC.codigoGerente.definido();
+      cod.situacao.textContent = codigoDefinido ? "Código definido." : "Nenhum código definido ainda. Defina um para liberar o cadastro de usuários.";
+      cod.situacao.classList.add(codigoDefinido ? "ok" : "pendente");
+      cod.atualRotulo.hidden = !codigoDefinido;
+      cod.salvar.textContent = codigoDefinido ? "Trocar código" : "Salvar código";
+      const aviso = window.FC.codigoGerente.aviso();
+      cod.aviso.hidden = !aviso;
+      cod.aviso.classList.toggle("error", !!aviso);
+      cod.aviso.textContent = aviso;
+    } catch (e) {
+      cod.situacao.textContent = e.mensagem || "Não foi possível consultar o código do gerente.";
+      cod.situacao.classList.add("erro");
+    }
+  }
+
+  cod.form.addEventListener("submit", async (evento) => {
+    evento.preventDefault();
+    if (cod.salvar.disabled) return;
+    const { FORMATO } = window.FC.codigoGerente;
+    if (codigoDefinido && !FORMATO.test(cod.atual.value)) { erroCodigo("Informe o código atual (6 números)."); cod.atual.focus(); return; }
+    if (!FORMATO.test(cod.novo.value)) { erroCodigo("O novo código deve ter exatamente 6 números."); cod.novo.focus(); return; }
+    if (cod.novo.value !== cod.novo2.value) { erroCodigo("Os códigos digitados não são iguais."); cod.novo2.focus(); return; }
+    cod.salvar.disabled = true;
+    cod.msg.textContent = "Salvando…";
+    try {
+      await window.FC.codigoGerente.definir({ codigoNovo: cod.novo.value, codigoAtual: codigoDefinido ? cod.atual.value : "" });
+      cod.form.reset();
+      cod.msg.textContent = "Código salvo. Ele não é exibido depois de salvo.";
+      window.FC.ui?.toast?.("Código do gerente salvo.");
+      await carregarCodigo();
+    } catch (e) {
+      erroCodigo(e.codigo === "codigo_atual_invalido" ? "O código atual não confere." : (e.mensagem || "Não foi possível salvar o código."));
+      cod.msg.textContent = "Guarde o código em local seguro. Ele não é exibido depois de salvo.";
+    } finally {
+      cod.salvar.disabled = false;
+    }
   });
 
   // O menu responsivo segue o comportamento das telas já existentes no projeto.

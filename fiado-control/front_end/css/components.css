@@ -236,3 +236,14 @@
 .segmented button:hover { color: var(--ink); }
 .segmented button[aria-pressed="true"] { color: var(--ink); background: #fff; font-weight: 700; box-shadow: 0 1px 3px rgba(27, 48, 79, .1); }
 
+/* ---------- seta de voltar (canto superior esquerdo do cabeçalho) ---------- */
+.page-title-wrap { display: flex; align-items: flex-start; gap: 14px; min-width: 0; }
+.page-back {
+  flex: none; display: inline-grid; place-items: center; width: 36px; height: 36px; margin-top: 1px;
+  color: var(--ink); background: #fff; border: 1px solid var(--line); border-radius: 9px;
+  transition: background .15s, border-color .15s;
+}
+.page-back svg { width: 18px; height: 18px; stroke-width: 2.2; }
+.page-back:hover { background: #f1f6fd; border-color: #b8c9e2; }
+.page-back:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+@media (max-width: 640px) { .page-title-wrap { gap: 10px; } .page-back { width: 32px; height: 32px; } }

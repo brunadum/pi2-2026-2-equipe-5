@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex">
+  <title>Página não encontrada | Fiado Control</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <!--
+    Página 404 autossuficiente: o servidor (nginx / Vercel) a entrega em qualquer endereço que não exista,
+    então não usa caminhos relativos. Os links do menu assumem o site na raiz do domínio (/pages/...).
+  -->
+  <style>
+    *{box-sizing:border-box}
+    body{margin:0;min-height:100vh;color:#202b40;background:#f6f9fc;font:14px Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif}
+    a{color:inherit;text-decoration:none}
+    svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+    .sidebar{position:fixed;inset:0 auto 0 0;display:flex;flex-direction:column;width:250px;padding:27px 16px 15px;color:#f7f9fd;background:#0c1b2e}
+    .brand{display:flex;align-items:center;gap:9px;padding:0 0 36px}
+    .brand-mark{display:grid;flex:0 0 32px;place-items:center;width:32px;height:32px;color:#fff;background:#2862f6;border-radius:8px}
+    .brand-mark svg{width:21px;height:21px;stroke-width:2}
+    .brand strong{display:block;color:#fff;font-size:23px;line-height:1.05;font-weight:800;letter-spacing:-.65px}
+    .brand small{display:block;margin-top:3px;color:#a4b1c4;font-size:10px}
+    nav{display:grid;gap:5px}
+    nav a{display:flex;align-items:center;gap:12px;height:44px;padding:0 12px;border-radius:8px;color:#a0aec2;font-weight:500}
+    nav a svg{color:#91a0b6}
+    nav a:hover{color:#fff;background:#142b47}
+    .conta{margin-top:30px;padding-top:15px;border-top:1px solid #203954;display:flex;align-items:center;gap:12px}
+    .avatar{display:grid;flex:0 0 36px;place-items:center;width:36px;height:36px;border-radius:50%;color:#fff;background:#347cf3;font-size:13px;font-weight:600}
+    .conta strong{display:block;color:#f7f9fd;font-size:12px;font-weight:600}
+    .conta small{display:block;margin-top:3px;color:#9baac0;font-size:10px}
+    main{min-height:100vh;margin-left:250px;display:grid;place-items:center;padding:32px}
+    .cartao{width:min(100%,540px);padding:38px 32px 30px;text-align:center;background:#c0cad6;border-radius:22px;box-shadow:0 14px 34px rgba(12,27,46,.22)}
+    .cartao h1{margin:0;color:#000;font-size:40px;line-height:1.1;font-weight:800;letter-spacing:-.5px}
+    .cartao .sub{margin:2px 0 0;color:#000;font-size:12px;font-weight:700;letter-spacing:.2px}
+    .cartao .acao{margin-top:34px}
+    .recarregar{padding:5px 12px;border:0;border-radius:9px;color:#fff;background:#1a3358;font:inherit;font-size:22px;font-weight:700;cursor:pointer}
+    .recarregar:hover{background:#12264a}
+    .recarregar:focus-visible,.inicio:focus-visible{outline:3px solid #2862f6;outline-offset:3px}
+    .cartao .dica{margin:8px 0 0;color:#000;font-size:12px;font-weight:600}
+    .inicio{display:inline-block;margin-top:18px;padding:4px 6px;color:#1a3358;font-size:13px;font-weight:700;text-decoration:underline}
+    @media (max-width:720px){
+      .sidebar{position:static;width:auto;padding:16px;flex-direction:row;align-items:center;justify-content:space-between}
+      .brand{padding:0}.brand strong{font-size:19px}
+      nav,.conta{display:none}
+      main{margin-left:0;min-height:calc(100vh - 66px);padding:20px 14px}
+      .cartao h1{font-size:32px}
+      .recarregar{font-size:18px}
+    }
+  </style>
+</head>
+<body>
+  <aside class="sidebar">
+    <a class="brand" href="/pages/dashboard.html" aria-label="Fiado Control - Início">
+      <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 12 10 9a2 2 0 0 1 3 0l1 1M5 9l2-2a2 2 0 0 1 3 0l1 1m7 1-2-2a2 2 0 0 0-3 0l-5 5a2 2 0 0 0 3 3l2-2M3 6v12h18V6"/></svg></span>
+      <span><strong>Fiado Control</strong><small>Gestão de Vendas</small></span>
+    </a>
+    <nav aria-label="Navegação principal">
+      <a href="/pages/dashboard.html"><svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.2"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.2"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.2"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.2"/></svg><span>Dashboard</span></a>
+      <a href="/pages/nova-venda.html"><svg viewBox="0 0 24 24"><path d="M3 4h2l2.2 11.1a2 2 0 0 0 2 1.6h8.1a2 2 0 0 0 1.9-1.5L21 8H6"/><circle cx="10" cy="20" r="1.2"/><circle cx="18" cy="20" r="1.2"/></svg><span>Nova Venda</span></a>
+      <a href="/pages/clientes.html"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.3"/><path d="M2.8 20c.4-3.5 2.5-5.3 6.2-5.3s5.8 1.8 6.2 5.3M16 5.2a3.5 3.5 0 0 1 0 6.8M17.2 15c2.4.4 3.7 2.1 4 5"/></svg><span>Clientes</span></a>
+      <a href="/pages/registrar-pagamento.html"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h4"/></svg><span>Pagamentos</span></a>
+      <a href="/pages/relatorios-dashboard.html"><svg viewBox="0 0 24 24"><path d="M4 20V11M9.5 20V5M15 20v-7M20.5 20H2.5"/></svg><span>Relatórios</span></a>
+      <a href="/pages/configuracoes.html"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="m19.4 15 .1.1 1.2 1-1.5 2.6-1.5-.6a7.8 7.8 0 0 1-1.7 1l-.3 1.6h-3l-.3-1.6a7.8 7.8 0 0 1-1.7-1l-1.5.6-1.5-2.6 1.2-1a7.1 7.1 0 0 1 0-2l-1.2-1 1.5-2.6 1.5.6a7.8 7.8 0 0 1 1.7-1l.3-1.6h3l.3 1.6a7.8 7.8 0 0 1 1.7 1l1.5-.6 1.5 2.6-1.2 1a7.1 7.1 0 0 1 0 2Z"/></svg><span>Configurações</span></a>
+    </nav>
+    <div class="conta" id="conta" hidden>
+      <span class="avatar" id="conta-avatar">?</span>
+      <span><strong id="conta-nome">Usuário</strong><small id="conta-perfil"></small></span>
+    </div>
+  </aside>
+
+  <main>
+    <section class="cartao" role="alert" aria-labelledby="titulo-404">
+      <h1 id="titulo-404">ERROR 404</h1>
+      <p class="sub">PAGE NOT FOUND</p>
+      <div class="acao"><button class="recarregar" id="recarregar" type="button">RECARREGAR</button></div>
+      <p class="dica">Clique no botão para recarregar a página</p>
+      <a class="inicio" href="/pages/dashboard.html">Voltar ao início</a>
+    </section>
+  </main>
+
+  <script>
+    document.getElementById("recarregar").addEventListener("click", function () { location.reload(); });
+    // Mostra quem está logado, se houver sessão (sem exigir login nesta página).
+    try {
+      var nome = (sessionStorage.getItem("nome") || "").trim();
+      if (nome) {
+        var p = nome.split(/\s+/).filter(Boolean);
+        var perfil = (sessionStorage.getItem("perfil") || "").toUpperCase();
+        document.getElementById("conta-nome").textContent = nome;
+        document.getElementById("conta-perfil").textContent = perfil === "ADMIN" || perfil === "GERENTE" ? "Gerente" : "Funcionário";
+        document.getElementById("conta-avatar").textContent = ((p[0][0] || "") + (p.length > 1 ? p[p.length - 1][0] : "")).toUpperCase();
+        document.getElementById("conta").hidden = false;
+        document.getElementById("conta").style.display = "flex";
+      }
+    } catch (e) { /* sessionStorage indisponível */ }
+  </script>
+</body>
+</html>

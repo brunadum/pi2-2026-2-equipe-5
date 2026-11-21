@@ -36,3 +36,35 @@
   .history-panel .data-table th, .history-panel .data-table td { padding-left: 8px; padding-right: 8px; }
   .history-panel .data-table th:first-child, .history-panel .data-table td:first-child { padding-left: 0; }
 }
+
+/* Ações por linha do histórico (RF13) */
+.history-panel .row-actions { display: inline-flex; gap: 12px; justify-content: flex-end; }
+.history-panel .row-actions button { padding: 0; border: 0; background: none; color: #d92d20; font-size: 13px; font-weight: 600; cursor: pointer; }
+.history-panel .row-actions button:hover { text-decoration: underline; }
+.history-panel .row-actions button:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; border-radius: 3px; }
+.op-resumo { margin: 0 0 14px; padding: 9px 12px; color: var(--muted); background: #f3f6fb; border-radius: 8px; font-size: 12px; line-height: 1.5; }
+.op-resumo strong { color: var(--ink); }
+.form-field textarea {
+  width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 9px; resize: vertical; min-height: 76px;
+  color: var(--ink); background: #fff; font: inherit; font-size: 14px; line-height: 1.45;
+}
+.form-field textarea:focus { outline: 0; border-color: #7aa5ff; box-shadow: 0 0 0 3px rgba(40, 98, 246, .12); }
+.form-field textarea::placeholder { color: #94a6c0; }
+.form-field.has-error textarea { border-color: #e5484d; }
+
+/* Celular: cada linha do histórico vira um cartão, para as ações não ficarem escondidas na rolagem lateral. */
+@media (max-width: 640px) {
+  .history-panel .data-table { white-space: normal; }
+  .history-panel .data-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .history-panel .data-table tbody tr {
+    display: grid; grid-template-columns: 1fr auto; grid-template-areas: "op valor" "data acao" "status acao";
+    gap: 3px 12px; padding: 12px 0; border-top: 1px solid #e6edf6;
+  }
+  .history-panel .data-table tbody td { display: block; padding: 0; border: 0; }
+  .history-panel .data-table td:nth-child(1) { grid-area: data; font-size: 12px; }
+  .history-panel .data-table td:nth-child(2) { grid-area: op; }
+  .history-panel .data-table td:nth-child(3) { grid-area: valor; text-align: right; }
+  .history-panel .data-table td:nth-child(4) { grid-area: status; }
+  .history-panel .data-table td:nth-child(5) { grid-area: acao; align-self: end; text-align: right; }
+  .history-panel .data-table tr.skeleton-row td:nth-child(5) { display: none; }
+}

@@ -207,3 +207,13 @@ tbody td:first-child { color: #202b40; font-weight: 500; }
   .quick-button { flex-basis: 100%; }
   .panel-heading { align-items: flex-start; flex-direction: column; }
 }
+
+/* Dados reais: estados e detalhes do gráfico/tabela */
+.dash-status { margin: 8px 0 0; color: #b42318; font-size: 13px; }
+.dash-status[hidden] { display: none; }
+.dash-retry { margin-left: 6px; padding: 4px 12px; border: 1px solid currentColor; border-radius: 8px; color: inherit; background: transparent; font: inherit; font-weight: 600; cursor: pointer; }
+.chart-msg { align-self: center; width: 100%; margin: 0; color: #667b9b; font-size: 13px; text-align: center; }
+.cliente-link { color: #202b40; font-weight: 500; }
+.cliente-link:hover { color: #1760f5; text-decoration: underline; }
+.bar { transition: height .3s ease; }
+@media (prefers-reduced-motion: reduce) { .bar { transition: none; } }

@@ -355,7 +355,7 @@
 
   // ------------------------------------------------------------------ limite
 
-  async function alterarLimite(cliente, valor, motivo) {
+  async function alterarLimite(cliente, valor, motivo, { autorizacao } = {}) {
     valor = arredondar(valor);
     const limiteAnterior = arredondar(cliente.limite_credito || 0);
     if (!(valor >= 0)) {
@@ -382,6 +382,7 @@
       await request(`/clientes/${encodeURIComponent(cliente.id)}/limite`, {
         method: "PUT",
         body: { limite_credito: valor },
+        headers: autorizacao ? { "X-Autorizacao-Gerente": autorizacao } : undefined,
       });
       delete store.limites[cliente.id];
     } catch (e) {

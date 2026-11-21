@@ -303,6 +303,14 @@
 
   // ----------------------------------------------------------------- início
 
+  const idVoltar = new URLSearchParams(location.search).get("id");
+  if (idVoltar) {
+    const voltar = document.getElementById("voltar-limite");
+    voltar.href = `cliente-detalhes.html?id=${encodeURIComponent(idVoltar)}`;
+    voltar.setAttribute("aria-label", "Voltar para o cliente");
+    voltar.title = "Voltar para o cliente";
+  }
+
   renderCliente();
   carregarExcecoes();
   busca.carregar().then(() => {

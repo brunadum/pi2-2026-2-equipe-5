@@ -38,7 +38,7 @@
         <td><span class="badge ${u.ativo ? "badge-ok" : "badge-muted"}">${u.ativo ? "Ativo" : "Inativo"}</span></td>
         <td class="cell-right"><span class="acoes-linha">
           <button type="button" data-editar="${escapeHtml(u.id)}">Editar</button>
-          ${u.ativo ? `<button type="button" class="perigo" data-inativar="${escapeHtml(u.id)}">Inativar</button>` : ""}
+          ${u.ativo ? `<button type="button" class="perigo" data-inativar="${escapeHtml(u.id)}">Inativar</button>` : `<button type="button" data-reativar="${escapeHtml(u.id)}">Reativar</button>`}
         </span></td>
       </tr>`).join("");
     el.wrap.hidden = false;
@@ -73,7 +73,7 @@
   function novoFormulario() {
     state.editando = null;
     el.form.reset();
-    el.perfil.value = "vendedor";
+    el.perfil.value = "funcionario";
     el.titulo.textContent = "Cadastro / Edição de usuário";
     el.dicaSenha.hidden = true; el.reqSenha.hidden = false;
     el.senha.placeholder = "Mínimo de 6 caracteres";
@@ -112,14 +112,21 @@
     state.salvando = true; el.salvar.disabled = true; el.salvar.classList.add("is-loading");
     const edicao = state.editando !== null;
     try {
+      // Criar usuário exige o código do gerente (editar não).
+      let autorizacao = "";
+      if (!edicao) {
+        const auth = await FC.autorizacao.exigir({ forcar: true });
+        if (!auth.ok) return;
+        autorizacao = auth.autorizacao;
+      }
       await FC.usuarios.salvar(state.editando, {
         nome: el.nome.value, email: el.email.value, senha: el.senha.value, chavePerfil: el.perfil.value,
-      });
+      }, { autorizacao });
       FC.ui.toast(edicao ? "Usuário atualizado com sucesso." : "Usuário cadastrado com sucesso.");
       novoFormulario();
       await carregar();
     } catch (e) {
-      if (e.codigo === "email_ja_cadastrado") erroCampo("email", e.mensagem);
+      if (e.codigo === "email_duplicado") erroCampo("email", e.mensagem);
       else { el.alerta.textContent = e.mensagem || "Não foi possível salvar o usuário."; el.alerta.hidden = false; }
     } finally {
       state.salvando = false; el.salvar.disabled = false; el.salvar.classList.remove("is-loading");
@@ -129,6 +136,15 @@
   el.corpo.addEventListener("click", async (ev) => {
     const ed = ev.target.closest("[data-editar]");
     if (ed) return editar(ed.dataset.editar);
+    const rea = ev.target.closest("[data-reativar]");
+    if (rea) {
+      try {
+        await FC.usuarios.reativar(rea.dataset.reativar);
+        FC.ui.toast("Usuário reativado.");
+        await carregar();
+      } catch (e) { FC.ui.toast(e.mensagem || "Não foi possível reativar o usuário.", "erro"); }
+      return;
+    }
     const inat = ev.target.closest("[data-inativar]");
     if (!inat) return;
     const u = state.usuarios.find((x) => String(x.id) === String(inat.dataset.inativar));
@@ -144,7 +160,7 @@
       FC.ui.toast("Usuário inativado.");
       if (String(state.editando) === String(u.id)) novoFormulario();
       await carregar();
-    } catch (e) { FC.ui.toast(e.mensagem || "Não foi possível inativar o usuário."); }
+    } catch (e) { FC.ui.toast(e.mensagem || "Não foi possível inativar o usuário.", "erro"); }
   });
 
 
@@ -183,15 +199,18 @@
     if (state.salvando || !validarModal()) return;
     state.salvando = true; m.salvar.disabled = true; m.alerta.hidden = true;
     try {
+      // O código do gerente é pedido com o formulário já validado, só no momento de gravar.
+      const auth = await FC.autorizacao.exigir({ forcar: true });
+      if (!auth.ok) return;
       await FC.usuarios.salvar(null, {
-        nome: m.nome.value, email: m.email.value, senha: m.senha.value, chavePerfil: "vendedor",
+        nome: m.nome.value, email: m.email.value, senha: m.senha.value, chavePerfil: "funcionario",
         cpf: m.cpf.value, nomeUsuario: m.usuario.value,
-      });
+      }, { autorizacao: auth.autorizacao });
       modal.fechar();
-      FC.ui.toast("Usuário cadastrado com sucesso. Perfil inicial: Vendedor(a); use Editar para alterar.");
+      FC.ui.toast("Usuário cadastrado com sucesso. Perfil inicial: Funcionário(a); use Editar para alterar.");
       await carregar();
     } catch (e) {
-      if (e.codigo === "email_ja_cadastrado") erroModal("email", e.mensagem);
+      if (e.codigo === "email_duplicado") erroModal("email", e.mensagem);
       else { m.alerta.textContent = e.mensagem || "Não foi possível cadastrar o usuário."; m.alerta.hidden = false; }
     } finally { state.salvando = false; m.salvar.disabled = false; }
   });
