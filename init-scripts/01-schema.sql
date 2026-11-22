@@ -103,3 +103,33 @@ CREATE TABLE IF NOT EXISTS produto (
 );
 
 CREATE INDEX IF NOT EXISTS produto_nome_idx ON produto (nome);
+
+ALTER TABLE cliente
+ADD COLUMN IF NOT EXISTS logradouro_bairro VARCHAR(255),
+ADD COLUMN IF NOT EXISTS numero VARCHAR(20);
+
+CREATE TABLE IF NOT EXISTS venda_item (
+    id_item SERIAL PRIMARY KEY,
+    id_venda INTEGER NOT NULL REFERENCES venda(id_venda) ON DELETE CASCADE,
+    nome_produto VARCHAR(150) NOT NULL,
+    quantidade INTEGER NOT NULL CHECK (quantidade > 0),
+    preco_unitario NUMERIC(10, 2) NOT NULL CHECK (preco_unitario >= 0),
+    subtotal NUMERIC(10, 2) NOT NULL CHECK (subtotal >= 0)
+);
+
+CREATE INDEX IF NOT EXISTS idx_venda_item_id_venda ON venda_item(id_venda);
+
+ALTER TABLE cliente
+ADD COLUMN IF NOT EXISTS logradouro_bairro VARCHAR(255),
+ADD COLUMN IF NOT EXISTS numero VARCHAR(20);
+
+CREATE TABLE IF NOT EXISTS venda_item (
+    id_item SERIAL PRIMARY KEY,
+    id_venda INTEGER NOT NULL REFERENCES venda(id_venda) ON DELETE CASCADE,
+    nome_produto VARCHAR(150) NOT NULL,
+    quantidade INTEGER NOT NULL CHECK (quantidade > 0),
+    preco_unitario NUMERIC(10, 2) NOT NULL CHECK (preco_unitario >= 0),
+    subtotal NUMERIC(10, 2) NOT NULL CHECK (subtotal >= 0)
+);
+
+CREATE INDEX IF NOT EXISTS idx_venda_item_id_venda ON venda_item(id_venda);
