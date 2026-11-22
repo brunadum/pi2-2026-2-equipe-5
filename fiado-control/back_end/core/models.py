@@ -41,11 +41,12 @@ class Cliente(models.Model):
     limite_credito = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     credito_bloqueado = models.BooleanField(default=False)
     ativo = models.BooleanField(default=True)
+    logradouro_bairro = models.CharField(max_length=255, null=True, blank=True)
+    numero = models.CharField(max_length=20, null=True, blank=True)
 
     class Meta:
         db_table = 'cliente'
         managed = False
-
 
 class ClienteTelefone(models.Model):
     id_telefone = models.AutoField(primary_key=True)
@@ -110,4 +111,21 @@ class Recebimento(models.Model):
 
     class Meta:
         db_table = 'recebimento'
+        managed = False
+
+class VendaItem(models.Model):
+    id_item = models.AutoField(primary_key=True)
+    id_venda = models.ForeignKey(
+        Venda,
+        on_delete=models.CASCADE,
+        db_column='id_venda',
+        related_name='itens'
+    )
+    nome_produto = models.CharField(max_length=150)
+    quantidade = models.IntegerField()
+    preco_unitario = models.DecimalField(max_digits=10, decimal_places=2)
+    subtotal = models.DecimalField(max_digits=10, decimal_places=2)
+
+    class Meta:
+        db_table = 'venda_item'
         managed = False

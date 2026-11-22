@@ -1,0 +1,63 @@
+[33mcommit 2c410b6e9a88fec18a0d3c314f4b169041664d02[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m
+Merge: 324a254 4487ed1
+Author: Bruna Dantas <brunadantasuchoa1@gmail.com>
+Date:   Wed Nov 18 21:55:42 2026 -0300
+
+    Merge pull request #94 from brunadum/fix/[1;31mseed[m-perfis
+    
+    fix(db): padronizar perfis ADMIN e COMUM no 02-[1;31mseed[m.sql
+
+[33mcommit 4487ed1441c413ecb7dd57cbac2ed3ceb4309ba0[m[33m ([m[1;31morigin/fix/seed-perfis[m[33m, [m[1;32mfix/seed-perfis[m[33m)[m
+Author: Bruna Dantas <brunadantasuchoa1@gmail.com>
+Date:   Wed Nov 18 21:54:41 2026 -0300
+
+    fix(db): padronizar perfis ADMIN e COMUM no 02-[1;31mseed[m.sql
+
+ init-scripts/02-seed.sql | 4 [32m++[m[31m--[m
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+[33mcommit 2c121e2ea2e25ceb3331ee4998fdbd4be4197a9b[m
+Merge: f566077 81195ce
+Author: Bruna Dantas <brunadantasuchoa1@gmail.com>
+Date:   Mon Nov 9 09:45:35 2026 -0300
+
+    fix([1;31mseed[m): resolve conflito e mantem hashes corretos do django
+
+[33mcommit f566077f29f0811b2f474d3d6b9cc69530efb417[m
+Author: Bruna Dantas <brunadantasuchoa1@gmail.com>
+Date:   Mon Nov 9 09:41:42 2026 -0300
+
+    fix([1;31mseed[m): atualiza senhas para hash do django e aplica chaves de perfil
+
+ init-scripts/02-seed.sql | 23 [32m++++++++++++++++++[m[31m-----[m
+ requirements.txt         |  0
+ 2 files changed, 18 insertions(+), 5 deletions(-)
+
+[33mcommit e42cc172ad5ff71fa82aa140d0e25df9c38ef687[m
+Author: Bruna Dantas <brunadantasuchoa1@gmail.com>
+Date:   Sat Oct 31 19:41:24 2026 -0300
+
+    feat(backend): finaliza script de [1;31mseed[m e estrutura de perfis no banco
+
+ fiado-control/back_end/01-schema.sql         | 18 [32m++++++++++++[m[31m-[m
+ fiado-control/back_end/core/seed_usuarios.py | 40 [32m++++++++++++++++++++++++++++[m
+ fiado-control/back_end/manage.py             |  1 [31m-[m
+ 3 files changed, 57 insertions(+), 2 deletions(-)
+
+[33mcommit 2411db97b150e89102a3d2fcfa5e0c79a31e5c89[m
+Author: Bruna Dantas <brunadantasuchoa1@gmail.com>
+Date:   Wed Sep 30 18:49:31 2026 -0300
+
+    Update 02-[1;31mseed[m.sql
+
+ init-scripts/02-seed.sql | 96 [32m++++++++++++++++++++++++++[m[31m----------------------[m
+ 1 file changed, 53 insertions(+), 43 deletions(-)
+
+[33mcommit 1c4929df28970b2a732acd12701f9e0b816f0f47[m
+Author: Bruna Dantas <brunadantasuchoa1@gmail.com>
+Date:   Wed Sep 30 18:26:24 2026 -0300
+
+    Create 02-[1;31mseed[m.sql
+
+ init-scripts/02-seed.sql | 47 [32m+++++++++++++++++++++++++++++++++++++++++++++++[m
+ 1 file changed, 47 insertions(+)
