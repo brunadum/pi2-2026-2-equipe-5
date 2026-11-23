@@ -6,6 +6,7 @@ from decimal import Decimal, InvalidOperation
 from django.db import connection, transaction
 from django.views.decorators.csrf import csrf_exempt
 
+from .autorizacao_gerente import valido as autorizacao_valida
 from .financeiro import CENTAVO, MAX_VALOR, ZERO, consultar_parcelas, identificador
 from .models import Usuario
 from .views import (
@@ -34,13 +35,17 @@ def _resumo(cliente):
     }
 
 
-def _acesso(request, escrita=False):
+def _acesso(request, escrita=False, aceita_autorizacao=False):
+    """Identifica o usuário. Escrita exige gerente, salvo `aceita_autorizacao` com o
+    token do código do gerente (X-Autorizacao-Gerente) emitido para o próprio usuário."""
     usuario = _usuario_atual(request)
     if usuario is None:
         resposta = _erro('nao_autenticado', 'Autenticação necessária', 401)
         resposta['WWW-Authenticate'] = 'Bearer'
         return None, resposta
-    if usuario[1] not in ('gerente', 'funcionario') or escrita and usuario[1] != 'gerente':
+    if usuario[1] not in ('gerente', 'funcionario'):
+        return None, _erro('acesso_negado', 'Seu perfil não tem permissão para esta operação', 403)
+    if escrita and usuario[1] != 'gerente' and not (aceita_autorizacao and autorizacao_valida(request, usuario[0])):
         return None, _erro('acesso_negado', 'Seu perfil não tem permissão para esta operação', 403)
     return usuario[0], None
 
@@ -114,7 +119,7 @@ def bloqueio(request, id_cliente):
 def limite(request, id_cliente):
     if request.method not in ('GET', 'PUT'):
         return _erro('metodo_nao_permitido', 'Método não permitido nesta rota', 405)
-    usuario_id, resposta = _acesso(request, escrita=request.method == 'PUT')
+    usuario_id, resposta = _acesso(request, escrita=request.method == 'PUT', aceita_autorizacao=True)
     if resposta is not None:
         return resposta
     id_cliente = identificador(id_cliente)
