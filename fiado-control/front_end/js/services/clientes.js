@@ -749,31 +749,9 @@
       });
     }
 
-    const store = lerStore();
-
-    if (cliente.local) {
-      store.clientes = store.clientes.filter((c) => c.id !== cliente.id);
-    } else {
-      try {
-        await request(`/clientes/${encodeURIComponent(cliente.id)}`, {
-          method: "DELETE",
-        });
-
-        store.excluidos = store.excluidos.filter(
-          (i) => String(i) !== String(cliente.id),
-        );
-      } catch (e) {
-        if (!e.naoImplementado) throw e;
-
-        usoLocal.add("exclusao");
-
-        if (!store.excluidos.some((i) => String(i) === String(cliente.id))) {
-          store.excluidos.push(cliente.id);
-        }
-      }
-    }
-
-    salvarStore(store);
+    await request(`/clientes/${encodeURIComponent(cliente.id)}`, {
+      method: "DELETE",
+    });
   }
 
   // ------------------------------------------------------------------ vendas
