@@ -2,9 +2,7 @@
   const FC = (window.FC = window.FC || {});
   const { request, ApiError } = FC.api;
   const { apenasDigitos, arredondar, hojeISO } = FC.format;
-
   const CHAVE_STORE = "fiadoControl.local.v1";
-
   const usoLocal = new Set();
   const CHAVE_ROTAS = "fiadoControl.rotasIndisponiveis";
   const VALIDADE_MS = 2 * 60 * 1000;
@@ -22,16 +20,13 @@
           return false;
         }
       },
-
       set(_, rota, valor) {
         try {
           const mapa = JSON.parse(sessionStorage.getItem(CHAVE_ROTAS) || "{}");
           if (valor) mapa[rota] = Date.now();
           else delete mapa[rota];
-
           sessionStorage.setItem(CHAVE_ROTAS, JSON.stringify(mapa));
         } catch {}
-
         return true;
       },
     },
@@ -55,7 +50,6 @@
   function lerStore() {
     try {
       const s = JSON.parse(localStorage.getItem(CHAVE_STORE) || "{}");
-
       return {
         clientes: s.clientes || [],
         limites: s.limites || {},
@@ -101,7 +95,6 @@
 
   function normalizarCliente(c, store) {
     const ed = store.edicoes[c.id_cliente] || {};
-
     const telefones = (Array.isArray(c.telefone) ? c.telefone : [c.telefone])
       .filter(Boolean)
       .map(apenasDigitos);
@@ -112,8 +105,7 @@
       cpf: apenasDigitos(ed.cpf ?? c.cpf),
       telefone: ed.telefone ? [apenasDigitos(ed.telefone)] : telefones,
       endereco: ed.endereco ?? c.endereco ?? null,
-      limite_credito:
-        Number(store.limites[c.id_cliente] ?? c.limite_credito) || 0,
+      limite_credito: Number(c.limite_credito) || 0,
       credito_bloqueado: !!c.credito_bloqueado,
       ativo: c.ativo !== false,
       local: false,
@@ -151,9 +143,7 @@
 
     if (ehLocal(id)) {
       const c = store.clientes.find((x) => x.id === id);
-
       if (!c) throw naoEncontrado();
-
       return { ...c, local: true };
     }
 
@@ -165,7 +155,6 @@
         );
       } catch (e) {
         if (!e.naoImplementado) throw e;
-
         indisponivel.detalhe = true;
       }
     }
@@ -303,7 +292,6 @@
           }));
       } catch (e) {
         if (!e.naoImplementado) throw e;
-
         indisponivel.parcelas = true;
       }
     }
@@ -322,26 +310,9 @@
           `/clientes/${encodeURIComponent(cliente.id)}/saldo`,
         );
 
-        const alterado = lerStore().limites[cliente.id];
-
-        if (alterado !== undefined && !cliente.local) {
-          usoLocal.add("limite");
-
-          return {
-            ...r,
-            limite_credito: alterado,
-            limite_disponivel: Math.max(
-              0,
-              arredondar(alterado - r.saldo_devedor),
-            ),
-            origem: "api",
-          };
-        }
-
         return { ...r, origem: "api" };
       } catch (e) {
         if (!e.naoImplementado) throw e;
-
         indisponivel.saldo = true;
       }
     }
@@ -401,7 +372,6 @@
         }));
       } catch (e) {
         if (!e.naoImplementado) throw e;
-
         indisponivel.historico = true;
       }
     }
@@ -518,11 +488,19 @@
       });
     }
 
+    await request(`/clientes/${encodeURIComponent(cliente.id)}/limite`, {
+      method: "PUT",
+      body: { limite_credito: valor },
+      headers: autorizacao
+        ? { "X-Autorizacao-Gerente": autorizacao }
+        : undefined,
+    });
+
     const store = lerStore();
 
-    const registrar = () => {
-      if (!motivo) return;
+    delete store.limites[cliente.id];
 
+    if (motivo) {
       store.alteracoesLimite.unshift({
         id_cliente: cliente.id,
         data: new Date().toISOString(),
@@ -532,37 +510,8 @@
       });
 
       store.alteracoesLimite = store.alteracoesLimite.slice(0, 200);
-    };
-
-    if (cliente.local) {
-      const alvo = store.clientes.find((c) => c.id === cliente.id);
-
-      if (alvo) alvo.limite_credito = valor;
-
-      registrar();
-      salvarStore(store);
-
-      return valor;
     }
 
-    try {
-      await request(`/clientes/${encodeURIComponent(cliente.id)}/limite`, {
-        method: "PUT",
-        body: { limite_credito: valor },
-        headers: autorizacao
-          ? { "X-Autorizacao-Gerente": autorizacao }
-          : undefined,
-      });
-
-      delete store.limites[cliente.id];
-    } catch (e) {
-      if (!e.naoImplementado) throw e;
-
-      usoLocal.add("limite");
-      store.limites[cliente.id] = valor;
-    }
-
-    registrar();
     salvarStore(store);
 
     return valor;
@@ -600,17 +549,14 @@
 
   async function listarExcecoes() {
     const vendas = await obterVendas();
-
     const vendaPorId = new Map(vendas.map((v) => [v.id_venda, v]));
 
     if (!indisponivel.excecoes) {
       try {
         const dados = await request("/excecoes?status=pendente");
-
         return dados.map((e) => normalizarExcecao(e, vendaPorId));
       } catch (e) {
         if (!e.naoImplementado) throw e;
-
         indisponivel.excecoes = true;
       }
     }
@@ -758,13 +704,10 @@
 
   function somarMeses(iso, n) {
     const [a, m, d] = iso.split("-").map(Number);
-
     const total = m - 1 + n;
     const ano = a + Math.floor(total / 12);
     const mes = ((total % 12) + 12) % 12;
-
     const ultimo = new Date(ano, mes + 1, 0).getDate();
-
     const p = (x) => String(x).padStart(2, "0");
 
     return `${ano}-${p(mes + 1)}-${p(Math.min(d, ultimo))}`;
