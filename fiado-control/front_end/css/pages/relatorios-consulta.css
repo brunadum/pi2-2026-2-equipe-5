@@ -1,0 +1,66 @@
+/* Tela Consulta de Relatórios (RF12). Usa os componentes de css/components.css. */
+
+/* ---------- abas de tipo de relatório ---------- */
+.rel-tipos { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin-bottom: 18px; }
+.rel-tipo {
+  display: grid; gap: 3px; padding: 12px 14px; text-align: left;
+  color: var(--ink); background: #fff; border: 1px solid var(--line); border-radius: 12px;
+  transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
+}
+.rel-tipo strong { font-size: 13px; font-weight: 700; }
+.rel-tipo small { color: var(--muted); font-size: 11px; line-height: 1.35; }
+.rel-tipo:hover { border-color: #b8c9e2; background: #f9fbff; }
+.rel-tipo[aria-selected="true"] { border-color: var(--blue); background: #eff5ff; box-shadow: inset 0 0 0 1px var(--blue); }
+.rel-tipo[aria-selected="true"] strong { color: var(--blue); }
+.rel-tipo:focus-visible { outline: 2px solid #7aa5ff; outline-offset: 2px; }
+
+/* ---------- filtros ---------- */
+.rel-filtros { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) auto; gap: 14px; align-items: end; }
+.rel-filtros .form-field { margin-bottom: 0; }
+.rel-filtros select, .rel-filtros input {
+  width: 100%; height: 40px; padding: 0 12px; border: 1px solid var(--line); border-radius: 9px;
+  color: var(--ink); background: #fff; font-size: 14px;
+}
+.rel-filtros select:disabled, .rel-filtros input:disabled { color: #8a9ab3; background: #f3f6fb; cursor: not-allowed; }
+.rel-botoes { display: flex; gap: 10px; }
+.rel-dica { margin: 12px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+#f-erro { margin-top: 10px; }
+
+/* ---------- resultado ---------- */
+.rel-resultado { margin-top: 20px; }
+.painel-topo { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 14px; }
+.painel-topo h2 { margin-bottom: 4px; }
+.painel-sub { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+
+.rel-resumo { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+.rel-resumo[hidden] { display: none; }
+.rel-card { padding: 14px 16px; border: 1px solid #e6edf6; border-radius: 11px; background: #f9fbfe; min-width: 0; }
+.rel-card span { display: block; margin-bottom: 5px; color: var(--muted); font-size: 12px; font-weight: 600; }
+.rel-card strong { display: block; color: var(--ink); font-size: 19px; font-weight: 800; letter-spacing: -.3px; overflow-wrap: anywhere; }
+.rel-card strong.verde { color: #0b9d4b; }
+.rel-card strong.vermelho { color: #d92d20; }
+
+#estado-carregando { justify-items: stretch; }
+#estado-carregando p { text-align: center; }
+.rel-tabela td.cell-late { white-space: nowrap; }
+.rel-mais { display: flex; justify-content: center; margin-top: 16px; }
+.rel-mais[hidden] { display: none; }
+
+/* botão Exportar com carregamento (o .btn.is-loading usa texto transparente) */
+#btn-exportar svg { width: 16px; height: 16px; }
+
+/* ---------- responsivo (RNF03) ---------- */
+@media (max-width: 1100px) {
+  .rel-tipos { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .rel-filtros { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .rel-botoes { grid-column: 1 / -1; }
+}
+@media (max-width: 640px) {
+  .page-header #btn-exportar { width: 100%; }
+  .rel-tipos { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .rel-resumo { grid-template-columns: 1fr; }
+}
+@media (max-width: 480px) {
+  .rel-filtros { grid-template-columns: 1fr; }
+  .rel-botoes .btn { flex: 1; }
+}
