@@ -315,9 +315,157 @@ for codigo in ('400', '401'):
     PATHS['/login/']['post']['responses'][codigo] = resposta(ref('ErroLoginAtual'), 'Dados ausentes/JSON inválido ou credenciais inválidas')
 PATHS['/login/']['post']['responses']['405'] = resposta(ref('ErroLoginAtual'), 'Método não permitido')
 
+# --- Backend 1: edição/desativação de cliente, histórico, cancelamento, estorno e usuários ---
+PERFIL_USUARIO = {'type': 'string', 'enum': ['ADMIN', 'COMUM']}
+PERFIL_ENTRADA = {'type': 'string', 'enum': ['ADMIN', 'GERENTE', 'COMUM', 'FUNCIONARIO'],
+                  'description': 'Aceita maiúsculas/minúsculas; GERENTE vira ADMIN e FUNCIONARIO vira COMUM.'}
+MOTIVO = {'type': 'string', 'minLength': 1, 'maxLength': 200}
+SCHEMAS.update({
+    'ClienteAtualizacao': objeto({
+        'nome': {'type': 'string', 'minLength': 1, 'maxLength': 100},
+        'cpf': {'type': 'string', 'description': 'Opcional; se informado, CPF válido e único.'},
+        'telefone': {'type': 'array', 'minItems': 1, 'items': TEXTO},
+    }, ['nome', 'telefone']),
+    'ClienteDesativado': objeto({'mensagem': TEXTO}),
+    'Movimentacao': objeto({'tipo': {'type': 'string', 'enum': ['venda', 'cancelamento', 'pagamento']},
+                            'id': ID, 'data': DATA, 'valor': VALOR}),
+    'MotivoEntrada': objeto({'motivo': MOTIVO}),
+    'VendaCancelada': objeto({'id_venda': ID, 'id_cliente': ID, 'status': {'type': 'string', 'enum': ['cancelada']},
+                              'valor_estornado': VALOR, 'saldo_devedor_cliente': VALOR, 'motivo': MOTIVO}),
+    'PagamentoEstornado': objeto({'id_pagamento': ID, 'id_parcela': ID, 'valor_estornado': VALOR,
+                                  'status_parcela': {'type': 'string', 'enum': ['pendente', 'atrasado']},
+                                  'saldo_parcela': VALOR, 'saldo_devedor_cliente': VALOR, 'motivo': MOTIVO}),
+    'Usuario': objeto({'id_usuario': ID, 'nome': TEXTO, 'email': TEXTO, 'perfil': PERFIL_USUARIO, 'ativo': BOOLEANO}),
+    'UsuarioLista': objeto({'usuarios': lista(ref('Usuario'))}),
+    'UsuarioEntrada': objeto({
+        'nome': {'type': 'string', 'minLength': 2, 'maxLength': 100},
+        'email': {'type': 'string', 'format': 'email'},
+        'senha': {'type': 'string', 'format': 'password', 'minLength': 6},
+        'perfil': {**PERFIL_ENTRADA, 'default': 'COMUM'},
+        'ativo': {'type': 'boolean', 'default': True},
+    }, ['nome', 'email', 'senha']),
+    'UsuarioAtualizacao': objeto({
+        'nome': {'type': 'string', 'minLength': 2, 'maxLength': 100},
+        'email': {'type': 'string', 'format': 'email'},
+        'senha': {'type': 'string', 'format': 'password', 'minLength': 6},
+        'perfil': PERFIL_ENTRADA, 'ativo': BOOLEANO,
+    }),
+})
+del SCHEMAS['UsuarioAtualizacao']['required']  # todos os campos são opcionais; required vazio é inválido no OpenAPI 3.0
+AUTENTICADA_BASE = [(401, 'nao_autenticado')]
+ERROS_GERENTE = [(401, 'nao_autenticado'), (403, 'acesso_negado: somente gerente')]
+CLIENTE_ATUALIZACAO_ERROS = [(400, 'json_invalido, campo_obrigatorio, campo_invalido ou telefone_invalido'),
+                             (401, 'nao_autenticado'), (404, 'cliente_nao_encontrado'),
+                             (409, 'cpf_duplicado'), (422, 'cpf_invalido')]
+PATHS['/clientes/{id_cliente}']['put'] = operacao(
+    'editarCliente', 'Editar nome, CPF e telefones do cliente', 'RF02', ref('Cliente'),
+    entrada='ClienteAtualizacao', parametros=[CLIENTE_ID], erros=CLIENTE_ATUALIZACAO_ERROS, autenticada=True,
+    descricao='Exige usuário autenticado (request.usuario). Nome e telefone são obrigatórios; CPF é opcional e, '
+              'se omitido, permanece inalterado. Os telefones enviados substituem os anteriores.')
+PATHS['/clientes/{id_cliente}']['delete'] = operacao(
+    'desativarCliente', 'Desativar cliente sem dívida', 'RF02', ref('ClienteDesativado'),
+    parametros=[CLIENTE_ID], autenticada=True,
+    erros=[(400, 'campo_invalido'), (401, 'nao_autenticado'), (404, 'cliente_nao_encontrado'),
+           (409, 'cliente_com_divida: saldo devedor maior que zero')],
+    descricao='Exige usuário autenticado. Exclusão lógica (ativo = false); recusada quando há saldo devedor.')
+PATHS['/clientes/{id_cliente}/historico'] = {'get': operacao(
+    'consultarHistoricoCliente', 'Consultar histórico financeiro do cliente', 'RF04', lista(ref('Movimentacao')),
+    parametros=[CLIENTE_ID, parametro('data_inicio', DATA), parametro('data_fim', DATA)], autenticada=True,
+    erros=[(400, 'campo_invalido: id ou datas inválidas, ou data_inicio posterior a data_fim'),
+           (401, 'nao_autenticado'), (404, 'cliente_nao_encontrado')],
+    descricao='Vendas, cancelamentos e recebimentos do cliente, do mais recente para o mais antigo. '
+              'Exige usuário autenticado; ambos os perfis.')}
+PATHS['/vendas/{id_venda}/cancelar'] = {'post': operacao(
+    'cancelarVenda', 'Cancelar venda aprovada com auditoria', 'RF13', ref('VendaCancelada'),
+    entrada='MotivoEntrada', autenticada=True,
+    parametros=[{'name': 'id_venda', 'in': 'path', 'required': True, 'schema': ID}],
+    erros=[(400, 'json_invalido, campo_obrigatorio ou campo_invalido'), *ERROS_GERENTE,
+           (404, 'venda_nao_encontrada'),
+           (422, 'venda_ja_cancelada, venda_nao_cancelavel ou venda_possui_pagamentos')],
+    descricao='Somente gerente. Só vendas aprovadas e sem recebimentos (estorne antes). Motivo obrigatório. '
+              'Alteração de status e auditoria são atômicas. ' + INTEGRACAO)}
+PATHS['/pagamentos/{id_pagamento}/estornar'] = {'post': operacao(
+    'estornarPagamento', 'Estornar recebimento com auditoria', 'RF14', ref('PagamentoEstornado'),
+    entrada='MotivoEntrada', autenticada=True,
+    parametros=[{'name': 'id_pagamento', 'in': 'path', 'required': True, 'schema': ID,
+                 'description': 'Identificador do recebimento (id_pagamento de GET /pagamentos), não da parcela.'}],
+    erros=[(400, 'json_invalido, campo_obrigatorio ou campo_invalido'), *ERROS_GERENTE,
+           (404, 'pagamento_nao_encontrado')],
+    descricao='Somente gerente. Remove o recebimento e reabre a parcela (pendente ou atrasado). '
+              'Motivo obrigatório; auditoria atômica. ' + INTEGRACAO)}
+USUARIO_ID = {'name': 'id_usuario', 'in': 'path', 'required': True, 'schema': ID}
+PATHS['/usuarios'] = {
+    'get': operacao('listarUsuarios', 'Listar usuários', 'RF08', ref('UsuarioLista'), autenticada=True,
+                    erros=ERROS_GERENTE, descricao='Somente gerente. ' + INTEGRACAO),
+    'post': operacao('cadastrarUsuario', 'Cadastrar usuário com perfil', 'RF08', ref('Usuario'),
+                     entrada='UsuarioEntrada', status='201', autenticada=True,
+                     erros=[(400, 'json_invalido, campo_invalido ou perfil_nao_encontrado'), *ERROS_GERENTE,
+                            (409, 'email_duplicado')],
+                     descricao='Somente gerente. E-mail normalizado em minúsculas, senha com hash. Auditado. ' + INTEGRACAO),
+}
+PATHS['/usuarios/{id_usuario}'] = {
+    'get': operacao('consultarUsuario', 'Consultar usuário', 'RF08', ref('Usuario'), parametros=[USUARIO_ID],
+                    autenticada=True, erros=[(400, 'campo_invalido'), *ERROS_GERENTE, (404, 'usuario_nao_encontrado')],
+                    descricao='Somente gerente.'),
+    'put': operacao('editarUsuario', 'Editar usuário, perfil, situação ou senha', 'RF08', ref('Usuario'),
+                    entrada='UsuarioAtualizacao', parametros=[USUARIO_ID], autenticada=True,
+                    erros=[(400, 'json_invalido, campo_invalido ou perfil_nao_encontrado'), *ERROS_GERENTE,
+                           (404, 'usuario_nao_encontrado'), (409, 'email_duplicado'),
+                           (422, 'auto_bloqueio_nao_permitido')],
+                    descricao='Somente gerente. Campos omitidos permanecem. O gerente não pode desativar nem '
+                              'rebaixar a própria conta. Auditado. ' + INTEGRACAO),
+}
+
+# --- Código do gerente e auditoria ---
+CODIGO_6 = {'type': 'string', 'pattern': '^[0-9]{6}$', 'description': 'Exatamente 6 dígitos.'}
+SCHEMAS.update({
+    'CodigoGerenteEstado': objeto({'definido': BOOLEANO}),
+    'CodigoGerenteEntrada': objeto({'codigo_novo': CODIGO_6, 'codigo_atual': CODIGO_6}, ['codigo_novo']),
+    'AutorizacaoEntrada': objeto({'codigo': CODIGO_6}),
+    'Autorizacao': objeto({'autorizado': {'type': 'boolean', 'enum': [True]},
+                           'token_autorizacao': {'type': 'string', 'description': 'Envie em X-Autorizacao-Gerente.'},
+                           'expira_em_segundos': {'type': 'integer'}}),
+    'RegistroAuditoria': objeto({
+        'id_auditoria': {'type': 'string', 'description': 'Prefixo f (financeira) ou c (crédito) + número.'},
+        'data_hora': {'type': 'string', 'format': 'date-time'}, 'id_usuario': ID, 'nome_usuario': TEXTO,
+        'operacao': TEXTO, 'id_recurso': {'type': 'integer', 'description': 'Venda, recebimento, parcela, usuário ou cliente, conforme a operação.'},
+        'valores_anteriores': {'type': 'object'}, 'valores_novos': {'type': 'object'}, 'motivo': TEXTO}),
+})
+HEADER_AUTORIZACAO = {'name': 'X-Autorizacao-Gerente', 'in': 'header', 'required': False, 'schema': TEXTO,
+                      'description': 'Token de POST /autorizacoes/gerente. Permite a um funcionário realizar esta operação restrita.'}
+for caminho, metodo in (('/vendas/{id_venda}/cancelar', 'post'), ('/pagamentos/{id_pagamento}/estornar', 'post'),
+                        ('/clientes/{id_cliente}/limite', 'put'), ('/usuarios', 'post')):
+    PATHS[caminho][metodo]['parameters'].append(HEADER_AUTORIZACAO)
+    PATHS[caminho][metodo]['description'] += ' Funcionário só com X-Autorizacao-Gerente válido (código do gerente).'
+ERRO_BLOQUEIO = (429, 'codigo_gerente_bloqueado: 5 erros seguidos bloqueiam novas tentativas por 60 s (cabeçalho Retry-After)')
+PATHS['/configuracoes/codigo-gerente'] = {
+    'get': operacao('consultarCodigoGerente', 'Informar se o código do gerente está definido', 'RF07', ref('CodigoGerenteEstado'),
+                    autenticada=True, erros=AUTENTICADA_BASE + [(403, 'acesso_negado')],
+                    descricao='Gerente ou funcionário ativos. Nunca devolve o código.'),
+    'put': operacao('definirCodigoGerente', 'Definir ou trocar o código do gerente', 'RF07', ref('CodigoGerenteEstado'),
+                    entrada='CodigoGerenteEntrada', autenticada=True,
+                    erros=[(400, 'codigo_invalido, campo_obrigatorio ou json_invalido'), *ERROS_GERENTE,
+                           (422, 'codigo_atual_obrigatorio ou codigo_atual_invalido'), ERRO_BLOQUEIO],
+                    descricao='Somente gerente. A primeira definição dispensa codigo_atual; a troca o exige. '
+                              'Só o hash é guardado; o código não entra na auditoria. Auditado.'),
+}
+PATHS['/autorizacoes/gerente'] = {'post': operacao(
+    'autorizarComCodigoGerente', 'Validar o código do gerente e obter autorização temporária', 'RF07', ref('Autorizacao'),
+    entrada='AutorizacaoEntrada', autenticada=True,
+    erros=[(400, 'json_invalido ou campo_obrigatorio'), *AUTENTICADA_BASE, (409, 'codigo_gerente_nao_definido'),
+           (422, 'codigo_gerente_invalido'), ERRO_BLOQUEIO],
+    descricao='Gerente ou funcionário ativos. O token vale 120 s, só para o usuário que digitou o código, e '
+              'é enviado em X-Autorizacao-Gerente. Não serve como Bearer de login. Cada uso é auditado.')}
+PATHS['/auditoria'] = {'get': operacao(
+    'consultarAuditoria', 'Consultar histórico de auditoria', 'RF11', lista(ref('RegistroAuditoria')),
+    autenticada=True, erros=[(400, 'campo_invalido'), *ERROS_GERENTE],
+    parametros=[parametro('operacao'), parametro('id_usuario', ID), parametro('data_inicio', DATA),
+                parametro('data_fim', DATA), parametro('limite', {'type': 'integer', 'minimum': 1, 'maximum': 500, 'default': 200})],
+    descricao='Somente gerente. Reúne auditoria financeira e de crédito, do mais recente ao mais antigo.')}
+
 SCHEMA = {
     'openapi': '3.0.3',
-    'info': {'title': 'Fiado Control — API', 'version': '0.5.1',
+    'info': {'title': 'Fiado Control — API', 'version': '0.7.0',
              'description': 'Somente operações implementadas. Login JWT em /login/. '
              'Crédito e dashboard exigem Bearer válido e verificam as permissões no banco. '
              'As demais operações ainda aguardam a proteção global por perfil.'},

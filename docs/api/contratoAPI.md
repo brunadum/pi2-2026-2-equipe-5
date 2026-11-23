@@ -760,4 +760,4 @@ O GET também informa `modo_cobranca` e os campos anteriores (`id_configuracao`,
 
 Políticas obrigatórias: bloquear vendas com atraso=true; permitir cliente sem CPF=false; exigir senha em venda=false (fluxo ainda não implementado); restringir relatórios ao administrador=true. Valores incompatíveis retornam422 `politica_nao_disponivel`. Os demais campos são validados e aplicados ao cadastro, recebimento e desconto. O teto percentual de descontos é cumulativo na parcela e não pode ser contornado por várias chamadas.
 
-OpenAPI0.5.1 contém32 operações. Regras e testes atuais: [sprint5-backend2.md](sprint5-backend2.md).
+OpenAPI 0.7.0 contém 45 operações (inclui usuários, histórico, edição/desativação de cliente, cancelamento de venda, estorno de pagamento, código do gerente e consulta de auditoria). Código do gerente e auditoria: [codigo-gerente-auditoria.md](codigo-gerente-auditoria.md). Regras e testes atuais: [sprint5-backend2.md](sprint5-backend2.md).
