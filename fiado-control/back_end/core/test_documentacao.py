@@ -59,3 +59,14 @@ class DocumentacaoTests(SimpleTestCase):
             for codigo in ('200', '400', '401', '403', '404', '405'):
                 self.assertIn(codigo, operacao['responses'])
             self.assertIn('request.usuario', operacao['description'])
+
+
+class CorsTests(SimpleTestCase):
+    def test_preflight_permite_o_cabecalho_do_codigo_do_gerente(self):
+        resposta = self.client.options(
+            '/api/usuarios', HTTP_ORIGIN='https://pi2-2026-2-equipe-5-frontend.vercel.app',
+            HTTP_ACCESS_CONTROL_REQUEST_METHOD='POST',
+            HTTP_ACCESS_CONTROL_REQUEST_HEADERS='authorization,content-type,x-autorizacao-gerente')
+        self.assertEqual(resposta.status_code, 200)
+        self.assertIn('x-autorizacao-gerente', resposta['Access-Control-Allow-Headers'])
+        self.assertIn('authorization', resposta['Access-Control-Allow-Headers'])
