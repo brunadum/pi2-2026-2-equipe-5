@@ -719,49 +719,16 @@
   ) {
     const cpfDigitos = apenasDigitos(cpf);
     const telDigitos = apenasDigitos(telefone);
-    const store = lerStore();
 
-    if (cliente.local) {
-      const alvo = store.clientes.find((c) => c.id === cliente.id);
-
-      if (!alvo) throw naoEncontrado();
-
-      Object.assign(alvo, {
+    await request(`/clientes/${encodeURIComponent(cliente.id)}`, {
+      method: "PUT",
+      body: {
         nome: nome.trim(),
         cpf: cpfDigitos,
         telefone: [telDigitos],
-        endereco: endereco || alvo.endereco || null,
-      });
-
-      salvarStore(store);
-    } else {
-      try {
-        await request(`/clientes/${encodeURIComponent(cliente.id)}`, {
-          method: "PUT",
-          body: {
-            nome: nome.trim(),
-            cpf: cpfDigitos,
-            telefone: [telDigitos],
-            ...(endereco ? { endereco } : {}),
-          },
-        });
-
-        delete store.edicoes[cliente.id];
-      } catch (e) {
-        if (!e.naoImplementado) throw e;
-
-        usoLocal.add("edicao");
-
-        store.edicoes[cliente.id] = {
-          nome: nome.trim(),
-          cpf: cpfDigitos,
-          telefone: telDigitos,
-          endereco: endereco || null,
-        };
-      }
-
-      salvarStore(store);
-    }
+        ...(endereco ? { endereco } : {}),
+      },
+    });
 
     if (
       limite != null &&
