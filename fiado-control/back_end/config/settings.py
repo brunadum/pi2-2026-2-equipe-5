@@ -160,5 +160,10 @@ CORS_ALLOWED_ORIGINS = [
 
 CORS_ALLOW_ALL_ORIGINS = True
 
+# Cabeçalho do token do código do gerente (ver core/autorizacao_gerente.py): sem ele o
+# navegador bloqueia no preflight as operações restritas feitas com o código.
+from corsheaders.defaults import default_headers
+CORS_ALLOW_HEADERS = (*default_headers, 'x-autorizacao-gerente')
+
 if DEBUG:
     ALLOWED_HOSTS = ['*']
