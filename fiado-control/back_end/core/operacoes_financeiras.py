@@ -23,7 +23,7 @@ def cancelar_venda(request, id_venda):
     if request.method != "POST":
         return _erro("metodo_nao_permitido", "Método não permitido nesta rota", 405)
 
-    usuario, erro = _acesso(request, escrita=True)
+    usuario, erro = _acesso(request, escrita=True, aceita_autorizacao=True)
     if erro is not None:
         return erro
 
@@ -112,7 +112,7 @@ def estornar_pagamento(request, id_pagamento):
     if request.method != "POST":
         return _erro("metodo_nao_permitido", "Método não permitido nesta rota", 405)
 
-    usuario, erro = _acesso(request, escrita=True)
+    usuario, erro = _acesso(request, escrita=True, aceita_autorizacao=True)
     if erro is not None:
         return erro
 

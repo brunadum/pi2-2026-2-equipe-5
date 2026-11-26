@@ -39,7 +39,7 @@ def _serializar_usuario(linha):
 
 @csrf_exempt
 def usuarios(request):
-    usuario_logado, erro = _acesso(request, escrita=True)
+    usuario_logado, erro = _acesso(request, escrita=True, aceita_autorizacao=request.method == "POST")
     if erro is not None:
         return erro
 

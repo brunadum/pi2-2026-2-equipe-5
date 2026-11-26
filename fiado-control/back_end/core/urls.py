@@ -3,7 +3,7 @@ from django.urls import path
 from . import views
 from . import credito
 from . import documentacao
-from . import configuracoes, relatorios, produtos, descontos, operacoes_financeiras, usuarios
+from . import auditoria, codigo_gerente, configuracoes, relatorios, produtos, descontos, operacoes_financeiras, usuarios
 
 
 urlpatterns = [
@@ -13,6 +13,12 @@ urlpatterns = [
     path('produtos/<str:id_produto>/', produtos.produtos),
     path('pagamentos/<str:id_parcela>/desconto', descontos.desconto),
     path('pagamentos/<str:id_parcela>/desconto/', descontos.desconto),
+    path('auditoria', auditoria.listar),
+    path('auditoria/', auditoria.listar),
+    path('configuracoes/codigo-gerente', codigo_gerente.codigo),
+    path('configuracoes/codigo-gerente/', codigo_gerente.codigo),
+    path('autorizacoes/gerente', codigo_gerente.autorizar),
+    path('autorizacoes/gerente/', codigo_gerente.autorizar),
     path('configuracoes/cobranca', configuracoes.cobranca),
     path('configuracoes/cobranca/', configuracoes.cobranca),
     path('configuracoes', configuracoes.sistema),
