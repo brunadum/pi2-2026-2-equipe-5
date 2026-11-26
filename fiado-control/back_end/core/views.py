@@ -71,7 +71,6 @@ def _obter_usuario_padrao():
 
 CAMPOS_OBRIGATORIOS_CLIENTE = ("nome", "cpf", "telefone")
 
-
 def _consultar_clientes(nome="", cpf="", telefone=""):
     with connection.cursor() as cursor:
         cursor.execute("""
@@ -82,7 +81,9 @@ def _consultar_clientes(nome="", cpf="", telefone=""):
                 c.limite_credito,
                 c.ativo,
                 c.credito_bloqueado,
-                ct.numero
+                ct.numero,
+                c.logradouro_bairro,
+                c.numero
             FROM cliente c
             LEFT JOIN cliente_telefone ct
                 ON c.id_cliente = ct.id_cliente
@@ -93,7 +94,18 @@ def _consultar_clientes(nome="", cpf="", telefone=""):
 
     clientes = {}
 
-    for id_cliente, nome_cliente, cpf_cliente, limite_credito, ativo, bloqueado, numero in registros:
+    for (
+        id_cliente,
+        nome_cliente,
+        cpf_cliente,
+        limite_credito,
+        ativo,
+        bloqueado,
+        numero_telefone,
+        logradouro_bairro,
+        numero_endereco,
+    ) in registros:
+
         if id_cliente not in clientes:
             clientes[id_cliente] = {
                 "id_cliente": id_cliente,
@@ -103,10 +115,19 @@ def _consultar_clientes(nome="", cpf="", telefone=""):
                 "limite_credito": limite_credito,
                 "credito_bloqueado": bloqueado,
                 "ativo": ativo,
+
+                # Endereço recuperado do PostgreSQL.
+                "endereco": {
+                    "logradouro_bairro": logradouro_bairro or "",
+                    "numero": numero_endereco or "",
+                },
             }
 
-        if numero and numero not in clientes[id_cliente]["telefone"]:
-            clientes[id_cliente]["telefone"].append(numero)
+        if (
+            numero_telefone
+            and numero_telefone not in clientes[id_cliente]["telefone"]
+        ):
+            clientes[id_cliente]["telefone"].append(numero_telefone)
 
     resultado = list(clientes.values())
 
@@ -127,7 +148,10 @@ def _consultar_clientes(nome="", cpf="", telefone=""):
         tel_limpo = _apenas_digitos(telefone)
         resultado = [
             c for c in resultado
-            if any(tel_limpo in _apenas_digitos(t) for t in c["telefone"])
+            if any(
+                tel_limpo in _apenas_digitos(t)
+                for t in c["telefone"]
+            )
         ]
 
     return resultado
@@ -135,18 +159,28 @@ def _consultar_clientes(nome="", cpf="", telefone=""):
 
 def _buscar_cliente(id_cliente, bloquear=False):
     with connection.cursor() as cursor:
+
+        # Consulta os dados do cliente, incluindo o endereço.
         cursor.execute(
-            "SELECT id_cliente, nome, cpf, limite_credito, ativo, credito_bloqueado "
-            "FROM cliente WHERE id_cliente = %s" + (" FOR UPDATE" if bloquear else ""),
+            "SELECT id_cliente, nome, cpf, limite_credito, "
+            "ativo, credito_bloqueado, logradouro_bairro, numero "
+            "FROM cliente WHERE id_cliente = %s"
+            + (" FOR UPDATE" if bloquear else ""),
             [id_cliente],
         )
+
         linha = cursor.fetchone()
+
         if linha is None:
             return None
+
+        # Consulta os telefones do cliente.
         cursor.execute(
-            "SELECT numero FROM cliente_telefone WHERE id_cliente = %s ORDER BY id_telefone",
+            "SELECT numero FROM cliente_telefone "
+            "WHERE id_cliente = %s ORDER BY id_telefone",
             [id_cliente],
         )
+
         telefones = [r[0] for r in cursor.fetchall()]
 
     return {
@@ -157,12 +191,21 @@ def _buscar_cliente(id_cliente, bloquear=False):
         "limite_credito": linha[3],
         "credito_bloqueado": linha[5],
         "ativo": linha[4],
+
+        # Endereço recuperado do PostgreSQL.
+        "endereco": {
+            "logradouro_bairro": linha[6] or "",
+            "numero": linha[7] or "",
+        },
     }
 
 
 def _cliente_nao_encontrado():
-    return _erro("cliente_nao_encontrado", "Cliente não encontrado", 404)
-
+    return _erro(
+        "cliente_nao_encontrado",
+        "Cliente não encontrado",
+        404,
+    )
 
 def _cadastrar_cliente(request):
     from .configuracoes import politicas
@@ -236,8 +279,10 @@ def cliente_detalhe(request, id_cliente):
 
     if request.method == "GET":
         cliente = _buscar_cliente(id_cliente)
+
         if cliente is None:
             return _cliente_nao_encontrado()
+
         return _json(cliente)
 
     if request.method == "PUT":
@@ -249,10 +294,12 @@ def cliente_detalhe(request, id_cliente):
             )
 
         dados = _ler_json(request)
+
         if dados is None:
             return _json_invalido()
 
         faltando = campos_ausentes(dados, ("nome", "telefone"))
+
         if faltando:
             return _erro(
                 "campo_obrigatorio",
@@ -264,6 +311,55 @@ def cliente_detalhe(request, id_cliente):
         nome = dados["nome"]
         telefones = dados["telefone"]
 
+        # Recebe os dados do endereço.
+        endereco = dados.get("endereco")
+
+        # Validação do endereço.
+        if endereco is not None:
+            if not isinstance(endereco, dict):
+                return _erro(
+                    "campo_invalido",
+                    "Endereço deve ser um objeto",
+                    400,
+                )
+
+            if (
+                "logradouro_bairro" not in endereco
+                or "numero" not in endereco
+            ):
+                return _erro(
+                    "campo_obrigatorio",
+                    "Informe o logradouro, bairro e número",
+                    400,
+                )
+
+            logradouro_bairro = endereco["logradouro_bairro"]
+            numero = endereco["numero"]
+
+            if (
+                not isinstance(logradouro_bairro, str)
+                or len(logradouro_bairro.strip()) > 255
+            ):
+                return _erro(
+                    "campo_invalido",
+                    "Logradouro e bairro inválidos",
+                    400,
+                )
+
+            if (
+                not isinstance(numero, str)
+                or len(numero.strip()) > 20
+            ):
+                return _erro(
+                    "campo_invalido",
+                    "Número do endereço inválido",
+                    400,
+                )
+
+            logradouro_bairro = logradouro_bairro.strip()
+            numero = numero.strip()
+
+        # Validação do nome.
         if not isinstance(nome, str) or not 1 <= len(nome.strip()) <= 100:
             return _erro(
                 "campo_invalido",
@@ -271,8 +367,10 @@ def cliente_detalhe(request, id_cliente):
                 400,
             )
 
+        # Validação do CPF.
         cpf_informado = "cpf" in dados and dados["cpf"] not in (None, "")
         cpf = normalizar_cpf(dados["cpf"]) if cpf_informado else None
+
         if cpf_informado and (cpf is None or not cpf_valido(cpf)):
             return _erro(
                 "cpf_invalido",
@@ -280,6 +378,7 @@ def cliente_detalhe(request, id_cliente):
                 422,
             )
 
+        # Validação dos telefones.
         if not isinstance(telefones, list):
             return _erro(
                 "telefone_invalido",
@@ -288,6 +387,7 @@ def cliente_detalhe(request, id_cliente):
             )
 
         telefones = [normalizar_telefone(t) for t in telefones]
+
         if not telefones or any(t is None for t in telefones):
             return _erro(
                 "telefone_invalido",
@@ -299,14 +399,18 @@ def cliente_detalhe(request, id_cliente):
 
         with transaction.atomic():
             with connection.cursor() as cursor:
+
+                # Verifica se o cliente existe.
                 cursor.execute(
                     "SELECT id_cliente FROM cliente "
                     "WHERE id_cliente = %s FOR UPDATE",
                     [id_cliente],
                 )
+
                 if cursor.fetchone() is None:
                     return _cliente_nao_encontrado()
 
+                # Atualização do nome e CPF.
                 if cpf_informado:
                     cursor.execute(
                         "SELECT 1 FROM cliente "
@@ -314,17 +418,20 @@ def cliente_detalhe(request, id_cliente):
                         "AND id_cliente <> %s",
                         [cpf, id_cliente],
                     )
+
                     if cursor.fetchone():
                         return _erro(
                             "cpf_duplicado",
                             "CPF já cadastrado para outro cliente",
                             409,
                         )
+
                     cursor.execute(
                         "UPDATE cliente SET nome = %s, cpf = %s "
                         "WHERE id_cliente = %s",
                         [nome.strip(), cpf, id_cliente],
                     )
+
                 else:
                     cursor.execute(
                         "UPDATE cliente SET nome = %s "
@@ -332,11 +439,26 @@ def cliente_detalhe(request, id_cliente):
                         [nome.strip(), id_cliente],
                     )
 
+                # Atualização do endereço no PostgreSQL.
+                if endereco is not None:
+                    cursor.execute(
+                        "UPDATE cliente "
+                        "SET logradouro_bairro = %s, numero = %s "
+                        "WHERE id_cliente = %s",
+                        [
+                            logradouro_bairro,
+                            numero,
+                            id_cliente,
+                        ],
+                    )
+
+                # Remove os telefones antigos.
                 cursor.execute(
                     "DELETE FROM cliente_telefone WHERE id_cliente = %s",
                     [id_cliente],
                 )
 
+                # Insere os telefones atualizados.
                 for telefone in telefones:
                     cursor.execute(
                         "INSERT INTO cliente_telefone "
@@ -398,7 +520,6 @@ def cliente_detalhe(request, id_cliente):
         "Método não permitido nesta rota",
         405,
     )
-
 
 def _parcelas_do_cliente(id_cliente, status=None):
     parcelas = consultar_parcelas(id_cliente)
