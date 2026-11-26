@@ -735,108 +735,385 @@ def _consultar_vendas(filtros=None):
 
     return vendas
 
-
 def _registrar_venda(request):
     dados = _ler_json(request)
+
     if dados is None:
         return _json_invalido()
 
     faltando = campos_ausentes(dados, CAMPOS_OBRIGATORIOS_VENDA)
+
     if faltando:
-        return _erro('campo_obrigatorio', 'Campos obrigatórios ausentes', 400, campos=faltando)
+        return _erro(
+            "campo_obrigatorio",
+            "Campos obrigatórios ausentes",
+            400,
+            campos=faltando,
+        )
 
     if dados["modalidade"] not in MODALIDADES:
-        return _erro("campo_invalido", "Modalidade deve ser fiado ou a_prazo", 400)
+        return _erro(
+            "campo_invalido",
+            "Modalidade deve ser fiado ou a_prazo",
+            400,
+        )
 
+    # Validação da quantidade de parcelas.
     if dados["modalidade"] == "fiado":
-        quantidade_informada = dados.get('quantidade_parcelas', 1)
+        quantidade_informada = dados.get("quantidade_parcelas", 1)
+
         if type(quantidade_informada) is not int or quantidade_informada != 1:
-            return _erro('campo_invalido', 'Venda fiado deve ter exatamente uma parcela', 400)
+            return _erro(
+                "campo_invalido",
+                "Venda fiado deve ter exatamente uma parcela",
+                400,
+            )
+
         quantidade = 1
+
     else:
         quantidade = dados.get("quantidade_parcelas")
+
         if quantidade in (None, "", []):
             return _erro(
-                "campo_obrigatorio", "Campo obrigatório ausente: quantidade_parcelas", 400
-            )
-        if not isinstance(quantidade, int) or isinstance(quantidade, bool) or quantidade < 1:
-            return _erro(
-                "campo_invalido", "quantidade_parcelas deve ser um inteiro maior que zero", 400
+                "campo_obrigatorio",
+                "Campo obrigatório ausente: quantidade_parcelas",
+                400,
             )
 
-    valor_total = validar_valor(dados['valor_total'])
-    id_cliente = identificador(dados['id_cliente'])
+        if (
+            not isinstance(quantidade, int)
+            or isinstance(quantidade, bool)
+            or quantidade < 1
+        ):
+            return _erro(
+                "campo_invalido",
+                "quantidade_parcelas deve ser um inteiro maior que zero",
+                400,
+            )
+
+    # Validação do valor total e do cliente.
+    valor_total = validar_valor(dados["valor_total"])
+    id_cliente = identificador(dados["id_cliente"])
+
     if valor_total is None or id_cliente is None:
-        return _erro('campo_invalido', 'Informe id_cliente inteiro positivo e valor_total positivo com até duas casas decimais', 400)
+        return _erro(
+            "campo_invalido",
+            "Informe id_cliente inteiro positivo e valor_total positivo com até duas casas decimais",
+            400,
+        )
+
+    # =============================================
+    # NOVO: RECEBIMENTO E VALIDAÇÃO DOS ITENS
+    # =============================================
+
+    itens = dados.get("itens", [])
+
+    if not isinstance(itens, list):
+        return _erro(
+            "campo_invalido",
+            "Os itens da venda devem ser uma lista",
+            400,
+        )
+
+    itens_validados = []
+    total_itens = Decimal("0.00")
+
+    for item in itens:
+
+        if not isinstance(item, dict):
+            return _erro(
+                "campo_invalido",
+                "Cada item deve ser um objeto",
+                400,
+            )
+
+        nome_produto = item.get("nome_produto")
+        quantidade_item = item.get("quantidade")
+        preco_unitario = validar_valor(item.get("preco_unitario"))
+
+        # Validação do nome do produto.
+        if (
+            not isinstance(nome_produto, str)
+            or not 1 <= len(nome_produto.strip()) <= 150
+        ):
+            return _erro(
+                "campo_invalido",
+                "Nome do produto inválido",
+                400,
+            )
+
+        # Validação da quantidade.
+        if (
+            type(quantidade_item) is not int
+            or not 1 <= quantidade_item <= 2147483647
+        ):
+            return _erro(
+                "campo_invalido",
+                "A quantidade do produto deve ser um inteiro positivo válido",
+                400,
+            )
+
+        # Validação do preço.
+        if (
+            preco_unitario is None
+            or preco_unitario <= ZERO
+            or preco_unitario > Decimal("99999999.99")
+        ):
+            return _erro(
+                "campo_invalido",
+                "Preço unitário inválido",
+                400,
+            )
+
+        # Calcula o subtotal no servidor.
+        subtotal = preco_unitario * quantidade_item
+
+        if subtotal > Decimal("99999999.99"):
+            return _erro(
+                "campo_invalido",
+                "Subtotal do produto excede o valor permitido",
+                400,
+            )
+
+        total_itens += subtotal
+
+        itens_validados.append({
+            "nome_produto": nome_produto.strip(),
+            "quantidade": quantidade_item,
+            "preco_unitario": preco_unitario,
+            "subtotal": subtotal,
+        })
+
+    # Confere se o total corresponde aos produtos.
+    if itens_validados and total_itens != valor_total:
+        return _erro(
+            "valor_total_invalido",
+            "O valor total da venda não corresponde à soma dos produtos",
+            400,
+        )
+
+    # =============================================
+    # VALIDAÇÕES EXISTENTES DA VENDA
+    # =============================================
+
     total_centavos = int(valor_total * 100)
+
     if quantidade > total_centavos:
-        return _erro('campo_invalido', 'Cada parcela deve ter pelo menos um centavo', 400)
+        return _erro(
+            "campo_invalido",
+            "Cada parcela deve ter pelo menos um centavo",
+            400,
+        )
 
     try:
-        primeiro_vencimento = data_iso(dados['data_primeiro_vencimento'])
-        _somar_meses(primeiro_vencimento, quantidade - 1)
+        primeiro_vencimento = data_iso(
+            dados["data_primeiro_vencimento"]
+        )
+
+        _somar_meses(
+            primeiro_vencimento,
+            quantidade - 1,
+        )
+
     except (ValueError, TypeError, OverflowError):
         return _erro(
-            "campo_invalido", "data_primeiro_vencimento deve estar no formato AAAA-MM-DD", 400
+            "campo_invalido",
+            "data_primeiro_vencimento deve estar no formato AAAA-MM-DD",
+            400,
         )
 
     if primeiro_vencimento < date.today():
-        return _erro('vencimento_invalido', 'O primeiro vencimento não pode ser anterior à data de hoje', 422)
+        return _erro(
+            "vencimento_invalido",
+            "O primeiro vencimento não pode ser anterior à data de hoje",
+            422,
+        )
 
     with transaction.atomic():
-        cliente = _buscar_cliente(id_cliente, bloquear=True)
+
+        cliente = _buscar_cliente(
+            id_cliente,
+            bloquear=True,
+        )
+
         if cliente is None:
-            return _erro("cliente_nao_encontrado", "Cliente não encontrado", 404)
+            return _erro(
+                "cliente_nao_encontrado",
+                "Cliente não encontrado",
+                404,
+            )
 
         parcelas = _parcelas_do_cliente(id_cliente)
-        saldo_devedor = round(sum((p["valor_atualizado"] for p in parcelas), ZERO), 2)
-        limite_disponivel = max(ZERO, cliente["limite_credito"] - saldo_devedor)
-        possui_atrasadas = any(p["status"] == "atrasado" for p in parcelas)
+
+        saldo_devedor = round(
+            sum(
+                (p["valor_atualizado"] for p in parcelas),
+                ZERO,
+            ),
+            2,
+        )
+
+        limite_disponivel = max(
+            ZERO,
+            cliente["limite_credito"] - saldo_devedor,
+        )
+
+        possui_atrasadas = any(
+            p["status"] == "atrasado"
+            for p in parcelas
+        )
 
         motivo = None
+
         if cliente["credito_bloqueado"]:
             motivo = "credito_bloqueado"
+
         elif possui_atrasadas:
             motivo = "parcelas_em_atraso"
+
         elif valor_total > limite_disponivel:
             motivo = "limite_credito_excedido"
 
         id_usuario = _obter_usuario_padrao()
 
         with connection.cursor() as cursor:
+
+            # Registro de vendas rejeitadas.
             if motivo:
                 cursor.execute("""
-                    INSERT INTO venda (id_cliente, id_usuario, data_venda, valor_total, modalidade, status, motivo_rejeicao)
-                    VALUES (%s, %s, CURRENT_TIMESTAMP, %s, %s, 'rejeitada', %s)
+                    INSERT INTO venda (
+                        id_cliente,
+                        id_usuario,
+                        data_venda,
+                        valor_total,
+                        modalidade,
+                        status,
+                        motivo_rejeicao
+                    )
+                    VALUES (
+                        %s, %s, CURRENT_TIMESTAMP,
+                        %s, %s, 'rejeitada', %s
+                    )
                     RETURNING id_venda
-                """, [cliente["id_cliente"], id_usuario, valor_total, dados["modalidade"], motivo])
+                """, [
+                    cliente["id_cliente"],
+                    id_usuario,
+                    valor_total,
+                    dados["modalidade"],
+                    motivo,
+                ])
+
                 id_venda = cursor.fetchone()[0]
 
                 return _json(
-                    {"id_venda": id_venda, "status": "rejeitada", "motivo": motivo},
+                    {
+                        "id_venda": id_venda,
+                        "status": "rejeitada",
+                        "motivo": motivo,
+                    },
                     status=422,
                 )
 
+            # Registro da venda aprovada.
             cursor.execute("""
-                INSERT INTO venda (id_cliente, id_usuario, data_venda, valor_total, modalidade, status)
-                VALUES (%s, %s, CURRENT_TIMESTAMP, %s, %s, 'aprovada')
+                INSERT INTO venda (
+                    id_cliente,
+                    id_usuario,
+                    data_venda,
+                    valor_total,
+                    modalidade,
+                    status
+                )
+                VALUES (
+                    %s, %s, CURRENT_TIMESTAMP,
+                    %s, %s, 'aprovada'
+                )
                 RETURNING id_venda
-            """, [cliente["id_cliente"], id_usuario, valor_total, dados["modalidade"]])
+            """, [
+                cliente["id_cliente"],
+                id_usuario,
+                valor_total,
+                dados["modalidade"],
+            ])
+
             id_venda = cursor.fetchone()[0]
+
+            # =============================================
+            # NOVO: REGISTRO DOS PRODUTOS DA VENDA
+            # =============================================
+
+            itens_resposta = []
+
+            for item in itens_validados:
+
+                cursor.execute("""
+                    INSERT INTO venda_item (
+                        id_venda,
+                        nome_produto,
+                        quantidade,
+                        preco_unitario,
+                        subtotal
+                    )
+                    VALUES (%s, %s, %s, %s, %s)
+                    RETURNING id_item
+                """, [
+                    id_venda,
+                    item["nome_produto"],
+                    item["quantidade"],
+                    item["preco_unitario"],
+                    item["subtotal"],
+                ])
+
+                id_item = cursor.fetchone()[0]
+
+                itens_resposta.append({
+                    "id_item": id_item,
+                    "nome_produto": item["nome_produto"],
+                    "quantidade": item["quantidade"],
+                    "preco_unitario": float(
+                        item["preco_unitario"]
+                    ),
+                    "subtotal": float(item["subtotal"]),
+                })
+
+            # =============================================
+            # REGISTRO DAS PARCELAS
+            # =============================================
 
             base = total_centavos // quantidade
             parcelas_resposta = []
 
             for i in range(quantidade):
-                centavos = base if i < quantidade - 1 else total_centavos - base * (quantidade - 1)
+
+                centavos = (
+                    base
+                    if i < quantidade - 1
+                    else total_centavos - base * (quantidade - 1)
+                )
+
                 valor_parcela = Decimal(centavos) * CENTAVO
-                vencimento = _somar_meses(primeiro_vencimento, i).isoformat()
+
+                vencimento = _somar_meses(
+                    primeiro_vencimento,
+                    i,
+                ).isoformat()
 
                 cursor.execute("""
-                    INSERT INTO pagamento (id_venda, valor_parcela, data_vencimento, status)
+                    INSERT INTO pagamento (
+                        id_venda,
+                        valor_parcela,
+                        data_vencimento,
+                        status
+                    )
                     VALUES (%s, %s, %s, 'pendente')
                     RETURNING id_pagamento
-                """, [id_venda, valor_parcela, vencimento])
+                """, [
+                    id_venda,
+                    valor_parcela,
+                    vencimento,
+                ])
+
                 id_pagamento = cursor.fetchone()[0]
 
                 parcelas_resposta.append({
@@ -846,6 +1123,7 @@ def _registrar_venda(request):
                     "data_vencimento": vencimento,
                 })
 
+        # Resposta da API.
         venda = {
             "id_venda": id_venda,
             "id_cliente": cliente["id_cliente"],
@@ -854,10 +1132,11 @@ def _registrar_venda(request):
             "data_venda": date.today().isoformat(),
             "valor_total": float(valor_total),
             "status": "aprovada",
+            "itens": itens_resposta,
             "parcelas": parcelas_resposta,
         }
-        return _json(venda, status=201)
 
+        return _json(venda, status=201)
 
 @csrf_exempt
 def vendas(request):
