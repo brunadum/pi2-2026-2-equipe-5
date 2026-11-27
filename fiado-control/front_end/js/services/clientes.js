@@ -1,125 +1,36 @@
 (function () {
   const FC = (window.FC = window.FC || {});
   const { request, ApiError } = FC.api;
-  const { apenasDigitos, arredondar, hojeISO } = FC.format;
+  const { apenasDigitos, arredondar } = FC.format;
 
-  const CHAVE_STORE = "fiadoControl.local.v1";
-  const usoLocal = new Set();
-  const CHAVE_ROTAS = "fiadoControl.rotasIndisponiveis";
-  const VALIDADE_MS = 2 * 60 * 1000;
+  let cacheVendas = null;
 
-  const indisponivel = new Proxy(
-    {},
-    {
-      get(_, rota) {
-        try {
-          const t = Number(
-            JSON.parse(
-              sessionStorage.getItem(CHAVE_ROTAS) || "{}"
-            )[rota],
-          );
-
-          return Number.isFinite(t) &&
-            Date.now() - t < VALIDADE_MS;
-        } catch {
-          return false;
-        }
-      },
-
-      set(_, rota, valor) {
-        try {
-          const mapa = JSON.parse(
-            sessionStorage.getItem(CHAVE_ROTAS) || "{}"
-          );
-
-          if (valor) mapa[rota] = Date.now();
-          else delete mapa[rota];
-
-          sessionStorage.setItem(
-            CHAVE_ROTAS,
-            JSON.stringify(mapa)
-          );
-        } catch {}
-
-        return true;
-      },
-    },
-  );
-
-  const ROTULOS_LOCAIS = {
-    cadastro: "novos clientes",
-    saldo: "valores em aberto",
-    parcelas: "parcelas",
-    historico: "histórico",
-    limite: "alterações de limite",
-    pagamento: "pagamentos",
-    edicao: "edições de clientes",
-    exclusao: "exclusões de clientes",
-    venda: "vendas",
-    excecao: "aprovações e recusas de exceção",
-  };
-
-  // ------------------------------------------------------------
-  // ARMAZENAMENTO LOCAL
-  // ------------------------------------------------------------
-
-  function lerStore() {
-    try {
-      const s = JSON.parse(
-        localStorage.getItem(CHAVE_STORE) || "{}"
-      );
-
-      return {
-        clientes: s.clientes || [],
-        limites: s.limites || {},
-        pagamentos: s.pagamentos || [],
-        seq: s.seq || 0,
-        edicoes: s.edicoes || {},
-        excluidos: s.excluidos || [],
-        vendas: s.vendas || [],
-        excecoes: s.excecoes || {},
-        alteracoesLimite: s.alteracoesLimite || [],
-      };
-    } catch {
-      return {
-        clientes: [],
-        limites: {},
-        pagamentos: [],
-        seq: 0,
-        edicoes: {},
-        excluidos: [],
-        vendas: [],
-        excecoes: {},
-        alteracoesLimite: [],
-      };
+  function validarCliente(cliente) {
+    if (
+      !cliente ||
+      cliente.id == null ||
+      cliente.local ||
+      String(cliente.id).startsWith("L")
+    ) {
+      throw new ApiError({
+        status: 422,
+        codigo: "cliente_invalido",
+        mensagem: "O cliente precisa estar cadastrado no banco de dados.",
+      });
     }
   }
 
-  function salvarStore(store) {
-    try {
-      localStorage.setItem(
-        CHAVE_STORE,
-        JSON.stringify(store)
-      );
-    } catch {}
+  function validarLista(dados, mensagem) {
+    if (!Array.isArray(dados)) {
+      throw new Error(mensagem);
+    }
+
+    return dados;
   }
 
-  const ehLocal = (id) => String(id).startsWith("L");
+  // Clientes
 
-  const naoEncontrado = () =>
-    new ApiError({
-      status: 404,
-      codigo: "cliente_nao_encontrado",
-      mensagem: "Cliente não encontrado.",
-    });
-
-  // ------------------------------------------------------------
-  // NORMALIZAÇÃO DOS CLIENTES
-  // ------------------------------------------------------------
-
-  function normalizarCliente(c, store) {
-    const ed = store.edicoes[c.id_cliente] || {};
-
+  function normalizarCliente(c) {
     const telefones = (
       Array.isArray(c.telefone)
         ? c.telefone
@@ -130,12 +41,10 @@
 
     return {
       id: c.id_cliente,
-      nome: ed.nome ?? c.nome,
-      cpf: apenasDigitos(ed.cpf ?? c.cpf),
-      telefone: ed.telefone
-        ? [apenasDigitos(ed.telefone)]
-        : telefones,
-      endereco: ed.endereco ?? c.endereco ?? null,
+      nome: c.nome,
+      cpf: apenasDigitos(c.cpf),
+      telefone: telefones,
+      endereco: c.endereco ?? null,
       limite_credito: Number(c.limite_credito) || 0,
       credito_bloqueado: !!c.credito_bloqueado,
       ativo: c.ativo !== false,
@@ -143,185 +52,150 @@
     };
   }
 
-  // ------------------------------------------------------------
-  // LISTAGEM DE CLIENTES
-  // ------------------------------------------------------------
-
   async function listarClientes() {
     const dados = await request("/clientes");
 
-    if (!Array.isArray(dados)) {
-      throw new Error(
-        "Resposta inválida da API de clientes"
-      );
-    }
-
-    return dados
-      .map((c) => ({
-        id: c.id_cliente,
-        nome: c.nome,
-        cpf: apenasDigitos(c.cpf),
-
-        telefone: (
-          Array.isArray(c.telefone)
-            ? c.telefone
-            : [c.telefone]
-        )
-          .filter(Boolean)
-          .map(apenasDigitos),
-
-        endereco: c.endereco ?? null,
-        limite_credito: Number(c.limite_credito) || 0,
-        credito_bloqueado: !!c.credito_bloqueado,
-        ativo: c.ativo !== false,
-        local: false,
-      }))
+    return validarLista(
+      dados,
+      "Resposta inválida da API de clientes."
+    )
+      .map(normalizarCliente)
       .filter((c) => c.ativo);
   }
 
-  // ------------------------------------------------------------
-  // CONSULTA INDIVIDUAL DO CLIENTE
-  // ------------------------------------------------------------
-
   async function obterCliente(id) {
-    const store = lerStore();
+    validarCliente({ id });
 
-    if (ehLocal(id)) {
-      const c = store.clientes.find((x) => x.id === id);
-
-      if (!c) throw naoEncontrado();
-
-      return { ...c, local: true };
-    }
-
-    if (!indisponivel.detalhe) {
-      try {
-        return normalizarCliente(
-          await request(
-            `/clientes/${encodeURIComponent(id)}`
-          ),
-          store,
-        );
-      } catch (e) {
-        if (!e.naoImplementado) throw e;
-
-        indisponivel.detalhe = true;
-      }
-    }
-
-    const cliente = (await listarClientes()).find(
-      (c) => String(c.id) === String(id),
+    const dados = await request(
+      `/clientes/${encodeURIComponent(id)}`
     );
 
-    if (!cliente) throw naoEncontrado();
-
-    return cliente;
+    return normalizarCliente(dados);
   }
 
-  // ------------------------------------------------------------
-  // CONSULTA DE VENDAS
-  // ------------------------------------------------------------
+  async function cadastrarCliente({
+    nome,
+    cpf,
+    telefone,
+    limite,
+    endereco,
+  }) {
+    const cpfDigitos = apenasDigitos(cpf);
+    const telDigitos = apenasDigitos(telefone);
 
-  let cacheVendas = null;
+    await request("/clientes", {
+      method: "POST",
+      body: {
+        nome: nome.trim(),
+        cpf: cpfDigitos,
+        telefone: [telDigitos],
+        ...(endereco ? { endereco } : {}),
+      },
+    });
+
+    const criado = (await listarClientes()).find(
+      (c) => c.cpf === cpfDigitos
+    );
+
+    if (!criado) {
+      throw new Error(
+        "Não foi possível confirmar o cadastro do cliente."
+      );
+    }
+
+    if (limite > 0) {
+      await alterarLimite(criado, limite);
+      return obterCliente(criado.id);
+    }
+
+    return criado;
+  }
+
+  async function editarCliente(
+    cliente,
+    { nome, cpf, telefone, limite, endereco }
+  ) {
+    validarCliente(cliente);
+
+    await request(
+      `/clientes/${encodeURIComponent(cliente.id)}`,
+      {
+        method: "PUT",
+        body: {
+          nome: nome.trim(),
+          cpf: apenasDigitos(cpf),
+          telefone: [apenasDigitos(telefone)],
+          ...(endereco ? { endereco } : {}),
+        },
+      }
+    );
+
+    if (
+      limite != null &&
+      arredondar(limite) !==
+        arredondar(cliente.limite_credito)
+    ) {
+      await alterarLimite(cliente, limite);
+    }
+  }
+
+  async function excluirCliente(cliente) {
+    validarCliente(cliente);
+
+    const resumo = await obterResumo(cliente);
+
+    if (resumo.saldo_devedor > 0) {
+      throw new ApiError({
+        status: 422,
+        codigo: "cliente_com_saldo",
+        mensagem:
+          `${cliente.nome} possui ` +
+          `${FC.format.moeda(resumo.saldo_devedor)} ` +
+          "em aberto. Quite as parcelas antes de excluir o cliente.",
+      });
+    }
+
+    await request(
+      `/clientes/${encodeURIComponent(cliente.id)}`,
+      {
+        method: "DELETE",
+      }
+    );
+
+    cacheVendas = null;
+  }
+
+  // Consulta de vendas
 
   function obterVendas() {
     if (
       !cacheVendas ||
       Date.now() - cacheVendas.t > 15000
     ) {
-      cacheVendas = {
+      const consulta = {
         t: Date.now(),
-        p: request("/vendas"),
+
+        p: request("/vendas").then((dados) =>
+          validarLista(
+            dados,
+            "Resposta inválida da API de vendas."
+          )
+        ),
       };
 
-      cacheVendas.p.catch(() => {
-        cacheVendas = null;
+      cacheVendas = consulta;
+
+      consulta.p.catch(() => {
+        if (cacheVendas === consulta) {
+          cacheVendas = null;
+        }
       });
     }
 
     return cacheVendas.p;
   }
 
-  // ------------------------------------------------------------
-  // PARCELAS LOCAIS
-  // ------------------------------------------------------------
-
-  async function parcelasLocais(cliente) {
-    const store = lerStore();
-
-    if (cliente.local) {
-      const lista = [];
-
-      for (
-        const v of store.vendas.filter(
-          (x) => x.id_cliente === cliente.id
-        )
-      ) {
-        for (const p of v.parcelas) {
-          const pago = store.pagamentos
-            .filter((x) => x.ref === p.id_parcela)
-            .reduce((t, x) => t + x.valor, 0);
-
-          const saldo = Math.max(
-            0,
-            arredondar(p.valor_parcela - pago)
-          );
-
-          lista.push({
-            id_parcela: p.id_parcela,
-            id_venda: v.id_venda,
-            numero: p.numero,
-            valor_parcela: p.valor_parcela,
-            saldo_parcela: saldo,
-            devido: saldo,
-            data_vencimento: p.data_vencimento,
-            total_parcelas: v.parcelas.length,
-            status: saldo > 0 ? "pendente" : "pago",
-            dias_atraso: 0,
-            origem: "local",
-          });
-        }
-      }
-
-      return lista;
-    }
-
-    const vendas = (await obterVendas()).filter(
-      (v) =>
-        v.id_cliente === cliente.id &&
-        v.status === "aprovada",
-    );
-
-    return vendas.map((v) => {
-      const id = `v${v.id_venda}`;
-
-      const pago = store.pagamentos
-        .filter((p) => p.ref === id)
-        .reduce((s, p) => s + p.valor, 0);
-
-      const saldo = Math.max(
-        0,
-        arredondar(v.valor_total - pago)
-      );
-
-      return {
-        id_parcela: id,
-        id_venda: v.id_venda,
-        numero: 1,
-        total_parcelas: 1,
-        valor_parcela: v.valor_total,
-        saldo_parcela: saldo,
-        devido: saldo,
-        data_vencimento: null,
-        status: saldo > 0 ? "pendente" : "pago",
-        origem: "local",
-      };
-    });
-  }
-
-  // ------------------------------------------------------------
-  // NORMALIZAÇÃO DAS PARCELAS DA API
-  // ------------------------------------------------------------
+  // Parcelas
 
   function normalizarParcelaApi(p) {
     const saldo =
@@ -337,272 +211,90 @@
       data_vencimento: p.data_vencimento ?? null,
       status: p.status,
       dias_atraso: p.dias_atraso ?? 0,
+      total_parcelas: p.total_parcelas ?? null,
       origem: "api",
     };
   }
 
   async function obterParcelasAbertas(cliente) {
-    if (!cliente.local && !indisponivel.parcelas) {
-      try {
-        const dados = await request(
-          `/clientes/${encodeURIComponent(cliente.id)}/parcelas`,
-        );
+    validarCliente(cliente);
 
-        const todas = dados.map(normalizarParcelaApi);
-        const quantidade = {};
-
-        todas.forEach((p) => {
-          quantidade[p.id_venda] = Math.max(
-            quantidade[p.id_venda] || 0,
-            p.numero,
-          );
-        });
-
-        return todas
-          .filter(
-            (p) =>
-              p.status !== "pago" &&
-              p.saldo_parcela > 0
-          )
-          .map((p) => ({
-            ...p,
-            total_parcelas:
-              quantidade[p.id_venda] || 1,
-          }));
-      } catch (e) {
-        if (!e.naoImplementado) throw e;
-
-        indisponivel.parcelas = true;
-      }
-    }
-
-    if (!cliente.local) {
-      usoLocal.add("parcelas");
-    }
-
-    return (await parcelasLocais(cliente)).filter(
-      (p) => p.saldo_parcela > 0
+    const dados = await request(
+      `/clientes/${encodeURIComponent(cliente.id)}/parcelas`
     );
+
+    const todas = validarLista(
+      dados,
+      "Resposta inválida da API de parcelas."
+    ).map(normalizarParcelaApi);
+
+    const quantidade = {};
+
+    todas.forEach((p) => {
+      quantidade[p.id_venda] = Math.max(
+        quantidade[p.id_venda] || 0,
+        p.numero,
+        p.total_parcelas || 0
+      );
+    });
+
+    return todas
+      .filter(
+        (p) =>
+          p.status !== "pago" &&
+          p.saldo_parcela > 0
+      )
+      .map((p) => ({
+        ...p,
+        total_parcelas: quantidade[p.id_venda] || 1,
+      }));
   }
 
-  // ------------------------------------------------------------
-  // SALDO E LIMITE DISPONÍVEL
-  // ------------------------------------------------------------
+  // Saldo e limite de crédito
 
   async function obterResumo(cliente) {
-    if (!cliente.local && !indisponivel.saldo) {
-      try {
-        const r = await request(
-          `/clientes/${encodeURIComponent(cliente.id)}/saldo`,
-        );
+    validarCliente(cliente);
 
-        return { ...r, origem: "api" };
-      } catch (e) {
-        if (!e.naoImplementado) throw e;
-
-        indisponivel.saldo = true;
-      }
-    }
-
-    if (!cliente.local) {
-      usoLocal.add("saldo");
-    }
-
-    const saldo = arredondar(
-      (await parcelasLocais(cliente)).reduce(
-        (s, p) => s + p.saldo_parcela,
-        0
-      ),
+    const r = await request(
+      `/clientes/${encodeURIComponent(cliente.id)}/saldo`
     );
 
+    if (
+      !r ||
+      r.saldo_devedor == null ||
+      r.limite_credito == null ||
+      r.limite_disponivel == null ||
+      !Number.isFinite(Number(r.saldo_devedor)) ||
+      !Number.isFinite(Number(r.limite_credito)) ||
+      !Number.isFinite(Number(r.limite_disponivel))
+    ) {
+      throw new Error(
+        "Resposta inválida da API de saldo."
+      );
+    }
+
     return {
-      id_cliente: cliente.id,
-      saldo_devedor: saldo,
-      limite_credito: cliente.limite_credito,
-
-      limite_disponivel: Math.max(
-        0,
-        arredondar(cliente.limite_credito - saldo),
-      ),
-
-      possui_parcelas_atrasadas: false,
-      credito_bloqueado: cliente.credito_bloqueado,
-      origem: "local",
+      ...r,
+      saldo_devedor: Number(r.saldo_devedor),
+      limite_credito: Number(r.limite_credito),
+      limite_disponivel: Number(r.limite_disponivel),
+      origem: "api",
     };
   }
 
   async function obterResumos(clientes) {
     const mapa = new Map();
 
-    const guardar = (cliente) =>
-      obterResumo(cliente).then(
-        (r) => mapa.set(cliente.id, r),
-        () => {},
-      );
-
-    if (!clientes.length) return mapa;
-
-    await guardar(clientes[0]);
-
     await Promise.all(
-      clientes.slice(1).map(guardar)
+      clientes.map(async (cliente) => {
+        const resumo = await obterResumo(cliente);
+
+        mapa.set(cliente.id, resumo);
+      })
     );
 
     return mapa;
   }
-
-  // ------------------------------------------------------------
-  // HISTÓRICO DO CLIENTE
-  // ------------------------------------------------------------
-
-  async function obterHistorico(cliente) {
-    if (!cliente.local && !indisponivel.historico) {
-      try {
-        const dados = await request(
-          `/clientes/${encodeURIComponent(cliente.id)}/historico`,
-        );
-
-        return dados.map((h) => ({
-          tipo: h.tipo,
-          id: h.id,
-          data: h.data,
-          valor: Number(h.valor) || 0,
-          situacao: null,
-        }));
-      } catch (e) {
-        if (!e.naoImplementado) throw e;
-
-        indisponivel.historico = true;
-      }
-    }
-
-    if (!cliente.local) {
-      usoLocal.add("historico");
-    }
-
-    const store = lerStore();
-    const itens = [];
-
-    if (cliente.local) {
-      for (
-        const v of store.vendas.filter(
-          (x) => x.id_cliente === cliente.id
-        )
-      ) {
-        itens.push({
-          tipo: "venda",
-          id: v.id_venda,
-          data: v.data,
-          valor: v.valor_total,
-          situacao: null,
-        });
-      }
-    } else {
-      const vendas = (await obterVendas()).filter(
-        (v) =>
-          v.id_cliente === cliente.id &&
-          v.status !== "rejeitada",
-      );
-
-      for (const v of vendas) {
-        itens.push({
-          tipo: "venda",
-          id: v.id_venda,
-          data: v.data_venda,
-          valor: v.valor_total,
-          situacao:
-            v.status === "aprovada"
-              ? null
-              : "pendente",
-        });
-      }
-    }
-
-    for (
-      const p of store.pagamentos.filter(
-        (x) => x.id_cliente === cliente.id
-      )
-    ) {
-      itens.push({
-        tipo: "pagamento",
-        id: p.id,
-        data: p.data,
-        valor: p.valor,
-        situacao: null,
-      });
-    }
-
-    return itens.sort(
-      (a, b) =>
-        String(b.data).localeCompare(String(a.data)) ||
-        b.id - a.id,
-    );
-  }
-
-  // ------------------------------------------------------------
-  // REGISTRO DE PAGAMENTOS
-  // ------------------------------------------------------------
-
-  async function registrarPagamento(
-    cliente,
-    parcela,
-    valor
-  ) {
-    valor = arredondar(valor);
-
-    if (parcela.origem === "api") {
-      return request("/pagamentos", {
-        method: "POST",
-
-        body: {
-          id_parcela: parcela.id_parcela,
-          valor_recebido: valor,
-        },
-      });
-    }
-
-    usoLocal.add("pagamento");
-
-    if (valor > parcela.saldo_parcela + 0.001) {
-      throw new ApiError({
-        status: 422,
-        codigo: "valor_excede_devido",
-        mensagem:
-          "O valor do pagamento excede o valor devido da parcela",
-      });
-    }
-
-    const store = lerStore();
-    const id = ++store.seq;
-
-    store.pagamentos.push({
-      id,
-      id_cliente: cliente.id,
-      ref: parcela.id_parcela,
-      valor,
-      data: hojeISO(),
-    });
-
-    salvarStore(store);
-
-    const saldoParcela = arredondar(
-      parcela.saldo_parcela - valor
-    );
-
-    return {
-      id_pagamento: id,
-      id_parcela: parcela.id_parcela,
-      valor_recebido: valor,
-      data_pagamento: hojeISO(),
-      status_parcela:
-        saldoParcela <= 0 ? "pago" : "parcial",
-      saldo_parcela: saldoParcela,
-    };
-  }
-
-  // ------------------------------------------------------------
-  // ALTERAÇÃO DE LIMITE DE CRÉDITO
-  // ------------------------------------------------------------
 
   async function alterarLimite(
     cliente,
@@ -610,19 +302,30 @@
     motivo,
     { autorizacao } = {}
   ) {
+    validarCliente(cliente);
+
     valor = arredondar(valor);
 
-    const limiteAnterior = arredondar(
-      cliente.limite_credito || 0
-    );
-
-    if (!(valor >= 0)) {
+    if (!Number.isFinite(valor) || valor < 0) {
       throw new ApiError({
         status: 422,
         codigo: "limite_invalido",
         mensagem:
           "O limite de crédito deve ser zero ou maior.",
       });
+    }
+
+    if (motivo != null) {
+      motivo = String(motivo).trim();
+
+      if (motivo.length > 200) {
+        throw new ApiError({
+          status: 400,
+          codigo: "motivo_invalido",
+          mensagem:
+            "O motivo deve possuir até 200 caracteres.",
+        });
+      }
     }
 
     await request(
@@ -632,6 +335,7 @@
 
         body: {
           limite_credito: valor,
+          ...(motivo ? { motivo } : {}),
         },
 
         headers: autorizacao
@@ -642,40 +346,210 @@
       }
     );
 
-    const store = lerStore();
-
-    delete store.limites[cliente.id];
-
-    if (motivo) {
-      store.alteracoesLimite.unshift({
-        id_cliente: cliente.id,
-        data: new Date().toISOString(),
-        de: limiteAnterior,
-        para: valor,
-        motivo,
-      });
-
-      store.alteracoesLimite =
-        store.alteracoesLimite.slice(0, 200);
-    }
-
-    salvarStore(store);
-
     return valor;
   }
 
-  function listarAlteracoesLimite(cliente) {
-    return lerStore().alteracoesLimite.filter(
-      (a) =>
-        String(a.id_cliente) === String(cliente.id),
+  // Histórico de alterações de limite pela auditoria
+
+  async function listarAlteracoesLimite(cliente) {
+    validarCliente(cliente);
+
+    const dados = await request(
+      "/auditoria?operacao=alteracao_limite&limite=500"
     );
+
+    return validarLista(
+      dados,
+      "Resposta inválida da API de auditoria."
+    )
+      .filter(
+        (a) =>
+          String(a.id_auditoria).startsWith("c") &&
+          String(a.id_recurso) === String(cliente.id)
+      )
+      .map((a) => ({
+        id: a.id_auditoria,
+        id_cliente: a.id_recurso,
+        data: a.data_hora,
+        de: Number(a.valores_anteriores?.limite_credito),
+        para: Number(a.valores_novos?.limite_credito),
+        motivo: a.motivo || "",
+        id_usuario: a.id_usuario,
+        nome_usuario: a.nome_usuario,
+      }));
   }
 
-  // ------------------------------------------------------------
-  // EXCEÇÕES DE CRÉDITO
-  // ------------------------------------------------------------
+  // Histórico do cliente
 
-  const JANELA_EXCECOES_DIAS = 30;
+  async function obterHistorico(cliente) {
+    validarCliente(cliente);
+
+    const dados = await request(
+      `/clientes/${encodeURIComponent(cliente.id)}/historico`
+    );
+
+    return validarLista(
+      dados,
+      "Resposta inválida da API de histórico."
+    ).map((h) => ({
+      ...h,
+      tipo: h.tipo,
+      id: h.id,
+      data: h.data,
+      valor: Number(h.valor) || 0,
+      situacao: h.situacao ?? null,
+    }));
+  }
+
+  // Pagamentos
+
+  async function registrarPagamento(
+    cliente,
+    parcela,
+    valor
+  ) {
+    validarCliente(cliente);
+
+    valor = arredondar(valor);
+
+    if (
+      !parcela ||
+      parcela.origem !== "api" ||
+      parcela.id_parcela == null
+    ) {
+      throw new ApiError({
+        status: 422,
+        codigo: "parcela_invalida",
+        mensagem:
+          "A parcela precisa estar registrada no banco de dados.",
+      });
+    }
+
+    if (!Number.isFinite(valor) || valor <= 0) {
+      throw new ApiError({
+        status: 422,
+        codigo: "valor_invalido",
+        mensagem:
+          "O valor do pagamento deve ser maior que zero.",
+      });
+    }
+
+    const devido = Number(
+      parcela.devido ?? parcela.saldo_parcela
+    );
+
+    if (
+      !Number.isFinite(devido) ||
+      valor > devido + 0.001
+    ) {
+      throw new ApiError({
+        status: 422,
+        codigo: "valor_excede_devido",
+        mensagem:
+          "O valor do pagamento excede o valor devido da parcela.",
+      });
+    }
+
+    const resposta = await request("/pagamentos", {
+      method: "POST",
+      body: {
+        id_parcela: parcela.id_parcela,
+        valor_recebido: valor,
+      },
+    });
+
+    cacheVendas = null;
+
+    return resposta;
+  }
+
+  async function registrarBaixa(
+    cliente,
+    parcelas,
+    valor,
+    forma
+  ) {
+    validarCliente(cliente);
+
+    valor = arredondar(valor);
+
+    if (!Number.isFinite(valor) || valor <= 0) {
+      throw new ApiError({
+        status: 422,
+        codigo: "valor_invalido",
+        mensagem:
+          "Informe um valor de pagamento válido.",
+      });
+    }
+
+    const ordenadas = [...parcelas].sort(
+      (a, b) =>
+        String(a.data_vencimento || "").localeCompare(
+          String(b.data_vencimento || "")
+        ) ||
+        a.numero - b.numero
+    );
+
+    const totalDevido = arredondar(
+      ordenadas.reduce(
+        (total, parcela) =>
+          total + Number(parcela.devido),
+        0
+      )
+    );
+
+    if (
+      !Number.isFinite(totalDevido) ||
+      valor > totalDevido + 0.001
+    ) {
+      throw new ApiError({
+        status: 422,
+        codigo: "valor_excede_devido",
+        mensagem:
+          "O pagamento excede o total devido das parcelas.",
+      });
+    }
+
+    let restante = valor;
+    const feitos = [];
+
+    for (const parcela of ordenadas) {
+      if (restante <= 0) break;
+
+      const parte = arredondar(
+        Math.min(restante, parcela.devido)
+      );
+
+      if (parte <= 0) continue;
+
+      try {
+        const resposta = await registrarPagamento(
+          cliente,
+          parcela,
+          parte
+        );
+
+        feitos.push({
+          parcela,
+          valor: parte,
+          resposta,
+        });
+
+        restante = arredondar(restante - parte);
+
+      } catch (e) {
+        e.concluidos = feitos;
+        throw e;
+      }
+    }
+
+    return {
+      pagamentos: feitos,
+      restante,
+    };
+  }
+
+  // Exceções de crédito
 
   const MOTIVOS_EXCECAO = {
     limite_credito_excedido: "Limite excedido",
@@ -683,7 +557,8 @@
   };
 
   function normalizarExcecao(e, vendaPorId) {
-    const venda = vendaPorId.get(e.id_venda) || {};
+    const venda =
+      vendaPorId.get(String(e.id_venda)) || {};
 
     return {
       id: e.id_excecao ?? `v${e.id_venda}`,
@@ -698,7 +573,9 @@
         "Cliente",
 
       valor:
-        Number(e.valor_total ?? venda.valor_total) || 0,
+        Number(
+          e.valor_total ?? venda.valor_total
+        ) || 0,
 
       motivo:
         e.motivo ?? venda.motivo_rejeicao ?? null,
@@ -706,228 +583,81 @@
       data:
         e.data_solicitacao ?? venda.data_venda ?? null,
 
-      origem: e.origem || "api",
+      origem: "api",
     };
   }
 
   async function listarExcecoes() {
-    const vendas = await obterVendas();
+    const [vendas, dados] = await Promise.all([
+      obterVendas(),
+      request("/excecoes?status=pendente"),
+    ]);
 
     const vendaPorId = new Map(
-      vendas.map((v) => [v.id_venda, v])
+      vendas.map((v) => [
+        String(v.id_venda),
+        v,
+      ])
     );
 
-    if (!indisponivel.excecoes) {
-      try {
-        const dados = await request(
-          "/excecoes?status=pendente"
-        );
-
-        return dados.map(
-          (e) => normalizarExcecao(e, vendaPorId)
-        );
-      } catch (e) {
-        if (!e.naoImplementado) throw e;
-
-        indisponivel.excecoes = true;
-      }
-    }
-
-    usoLocal.add("excecao");
-
-    const decididas = lerStore().excecoes;
-    const corte = new Date();
-
-    corte.setDate(
-      corte.getDate() - JANELA_EXCECOES_DIAS
+    return validarLista(
+      dados,
+      "Resposta inválida da API de exceções."
+    ).map((e) =>
+      normalizarExcecao(e, vendaPorId)
     );
-
-    const limite = corte.toISOString().slice(0, 10);
-
-    return vendas
-      .filter(
-        (v) =>
-          v.status === "rejeitada" &&
-          MOTIVOS_EXCECAO[v.motivo_rejeicao] &&
-          String(v.data_venda || "").slice(0, 10) >= limite &&
-          !decididas[v.id_venda],
-      )
-      .sort((a, b) => b.id_venda - a.id_venda)
-      .map((v) =>
-        normalizarExcecao(
-          {
-            id_venda: v.id_venda,
-            origem: "local",
-          },
-          vendaPorId,
-        ),
-      );
   }
 
   async function decidirExcecao(excecao, decisao) {
-    if (excecao.origem !== "local") {
-      const resposta = await request(
-        `/excecoes/${encodeURIComponent(excecao.id)}/${decisao}`,
-        {
-          method: "PUT",
-        },
-      );
-
-      cacheVendas = null;
-
-      return {
-        decisao,
-        local: false,
-        resposta,
-      };
+    if (
+      !excecao ||
+      excecao.origem === "local" ||
+      excecao.id == null
+    ) {
+      throw new ApiError({
+        status: 422,
+        codigo: "excecao_invalida",
+        mensagem:
+          "A exceção precisa estar registrada no banco de dados.",
+      });
     }
 
-    usoLocal.add("excecao");
+    if (!["aprovar", "negar"].includes(decisao)) {
+      throw new ApiError({
+        status: 422,
+        codigo: "decisao_invalida",
+        mensagem:
+          "Decisão de exceção inválida.",
+      });
+    }
 
-    const store = lerStore();
+    const resposta = await request(
+      `/excecoes/${encodeURIComponent(excecao.id)}/${decisao}`,
+      {
+        method: "PUT",
+      }
+    );
 
-    store.excecoes[excecao.id_venda] = {
-      decisao:
-        decisao === "aprovar"
-          ? "aprovada"
-          : "negada",
-
-      data: new Date().toISOString(),
-    };
-
-    salvarStore(store);
+    cacheVendas = null;
 
     return {
       decisao,
-      local: true,
+      local: false,
+      resposta,
     };
   }
 
   function listarDecisoesExcecao() {
-    return Object.entries(
-      lerStore().excecoes
-    ).map(([id_venda, d]) => ({
-      id_venda: Number(id_venda),
-      ...d,
-    }));
+    return [];
   }
 
-  // ------------------------------------------------------------
-  // CADASTRO DE CLIENTES
-  // ------------------------------------------------------------
-
-  async function cadastrarCliente({
-    nome,
-    cpf,
-    telefone,
-    limite,
-    endereco,
-  }) {
-    const cpfDigitos = apenasDigitos(cpf);
-    const telDigitos = apenasDigitos(telefone);
-
-    await request("/clientes", {
-      method: "POST",
-
-      body: {
-        nome: nome.trim(),
-        cpf: cpfDigitos,
-        telefone: [telDigitos],
-        ...(endereco ? { endereco } : {}),
-      },
-    });
-
-    const criado = (await listarClientes()).find(
-      (c) =>
-        c.cpf === cpfDigitos &&
-        !c.local,
-    );
-
-    if (!criado) {
-      throw new Error(
-        "Não foi possível confirmar o cadastro do cliente. Tente novamente.",
-      );
-    }
-
-    if (limite > 0) {
-      await alterarLimite(criado, limite);
-    }
-
-    return criado;
-  }
-
-  // ------------------------------------------------------------
-  // EDIÇÃO DE CLIENTES
-  // ------------------------------------------------------------
-
-  async function editarCliente(
-    cliente,
-    { nome, cpf, telefone, limite, endereco },
-  ) {
-    const cpfDigitos = apenasDigitos(cpf);
-    const telDigitos = apenasDigitos(telefone);
-
-    await request(
-      `/clientes/${encodeURIComponent(cliente.id)}`,
-      {
-        method: "PUT",
-
-        body: {
-          nome: nome.trim(),
-          cpf: cpfDigitos,
-          telefone: [telDigitos],
-          ...(endereco ? { endereco } : {}),
-        },
-      }
-    );
-
-    if (
-      limite != null &&
-      arredondar(limite) !==
-        arredondar(cliente.limite_credito)
-    ) {
-      await alterarLimite(cliente, limite);
-    }
-  }
-
-  // ------------------------------------------------------------
-  // EXCLUSÃO DE CLIENTES
-  // ------------------------------------------------------------
-
-  async function excluirCliente(cliente) {
-    const resumo = await obterResumo(cliente);
-
-    if (resumo.saldo_devedor > 0) {
-      throw new ApiError({
-        status: 422,
-        codigo: "cliente_com_saldo",
-
-        mensagem:
-          `${cliente.nome} possui ` +
-          `${FC.format.moeda(resumo.saldo_devedor)} ` +
-          "em aberto. Quite as parcelas antes de excluir o cliente.",
-      });
-    }
-
-    await request(
-      `/clientes/${encodeURIComponent(cliente.id)}`,
-      {
-        method: "DELETE",
-      }
-    );
-  }
-
-  // ------------------------------------------------------------
-  // CÁLCULO DOS VENCIMENTOS
-  // ------------------------------------------------------------
+  // Vencimentos
 
   function somarMeses(iso, n) {
     const [a, m, d] = iso.split("-").map(Number);
 
     const total = m - 1 + n;
-
     const ano = a + Math.floor(total / 12);
-
     const mes = ((total % 12) + 12) % 12;
 
     const ultimo = new Date(
@@ -955,11 +685,11 @@
       "O valor da venda excede o limite disponível do cliente.",
   };
 
-  // ------------------------------------------------------------
-  // REGISTRO DE VENDAS E PRODUTOS NO POSTGRESQL
-  // ------------------------------------------------------------
+  // Registro de vendas
 
   async function registrarVenda(cliente, venda) {
+    validarCliente(cliente);
+
     const total = arredondar(venda.total);
 
     const parcelas =
@@ -967,18 +697,14 @@
         ? 1
         : venda.parcelas;
 
-    // Impede vendas para clientes exclusivamente locais.
-
-    if (cliente.local) {
+    if (!Number.isFinite(total) || total <= 0) {
       throw new ApiError({
-        status: 422,
-        codigo: "cliente_local",
+        status: 400,
+        codigo: "valor_venda_invalido",
         mensagem:
-          "O cliente precisa estar cadastrado no banco de dados.",
+          "O valor total da venda deve ser maior que zero.",
       });
     }
-
-    // Verifica se existem produtos na venda.
 
     if (
       !Array.isArray(venda.itens) ||
@@ -992,8 +718,6 @@
       });
     }
 
-    // Converte os produtos para o formato da API.
-
     const itens = venda.itens.map((item) => ({
       nome_produto:
         item.nome_produto ?? item.nome,
@@ -1004,8 +728,6 @@
       preco_unitario:
         Number(item.preco_unitario ?? item.preco),
     }));
-
-    // Validação dos produtos.
 
     for (const item of itens) {
       if (
@@ -1019,7 +741,6 @@
         throw new ApiError({
           status: 400,
           codigo: "produto_invalido",
-
           mensagem:
             "Existe um produto com informações inválidas.",
         });
@@ -1027,8 +748,6 @@
     }
 
     let resposta;
-
-    // Envia a venda e seus produtos para o Django.
 
     try {
       resposta = await request("/vendas", {
@@ -1043,12 +762,13 @@
             venda.primeiroVencimento,
 
           quantidade_parcelas: parcelas,
-
-          // Produtos comprados pelo cliente.
-          itens: itens,
+          itens,
         },
       });
+
     } catch (e) {
+      cacheVendas = null;
+
       const motivo = e.dados?.motivo;
 
       if (e.status === 422 && motivo) {
@@ -1067,39 +787,7 @@
       throw e;
     }
 
-    // Compatibilidade temporária com o histórico.
-    // A cópia local será removida quando o histórico
-    // estiver completamente integrado ao PostgreSQL.
-
-    try {
-      const store = lerStore();
-
-      store.vendas = store.vendas.filter(
-        (v) =>
-          v.id_venda !== resposta.id_venda ||
-          v.api !== true,
-      );
-
-      store.vendas.push({
-        id_venda: resposta.id_venda,
-        api: true,
-        id_cliente: cliente.id,
-        data: hojeISO(),
-        valor_total: total,
-        itens: venda.itens,
-        parcelas: [],
-      });
-
-      salvarStore(store);
-
-    } catch (erro) {
-      console.warn(
-        "Venda registrada na API, mas não foi possível atualizar a cópia local.",
-        erro,
-      );
-    }
-
-    // Retorna os dados registrados pelo backend.
+    cacheVendas = null;
 
     return {
       id_venda: resposta.id_venda,
@@ -1110,151 +798,32 @@
     };
   }
 
-  // ------------------------------------------------------------
-  // BAIXA DE VÁRIAS PARCELAS
-  // ------------------------------------------------------------
-
-  async function registrarBaixa(
-    cliente,
-    parcelas,
-    valor,
-    forma
-  ) {
-    valor = arredondar(valor);
-
-    const ordenadas = [...parcelas].sort(
-      (a, b) =>
-        String(
-          a.data_vencimento || ""
-        ).localeCompare(
-          String(b.data_vencimento || "")
-        ) ||
-        a.numero - b.numero,
-    );
-
-    let restante = valor;
-    const feitos = [];
-
-    for (const parcela of ordenadas) {
-      if (restante <= 0) break;
-
-      const parte = arredondar(
-        Math.min(restante, parcela.devido)
-      );
-
-      if (parte <= 0) continue;
-
-      try {
-        const resposta =
-          await registrarPagamento(
-            cliente,
-            parcela,
-            parte
-          );
-
-        feitos.push({
-          parcela,
-          valor: parte,
-          resposta,
-        });
-
-        restante = arredondar(
-          restante - parte
-        );
-
-        if (parcela.origem === "api") {
-          const store = lerStore();
-          const id = ++store.seq;
-
-          store.pagamentos.push({
-            id: resposta.id_pagamento ?? id,
-            id_cliente: cliente.id,
-            ref: `api:${parcela.id_parcela}`,
-            valor: parte,
-            data: hojeISO(),
-            forma,
-          });
-
-          salvarStore(store);
-
-        } else {
-          const store = lerStore();
-
-          const reg = store.pagamentos.find(
-            (x) => x.id === resposta.id_pagamento,
-          );
-
-          if (reg) {
-            reg.forma = forma;
-
-            salvarStore(store);
-          }
-        }
-
-      } catch (e) {
-        e.concluidos = feitos;
-
-        throw e;
-      }
-    }
-
-    return {
-      pagamentos: feitos,
-    };
-  }
-
-  // ------------------------------------------------------------
-  // AVISOS DE ARMAZENAMENTO LOCAL
-  // ------------------------------------------------------------
-
-  function avisoLocal() {
-    const itens = [...usoLocal]
-      .map((k) => ROTULOS_LOCAIS[k])
-      .filter(Boolean);
-
-    if (!itens.length) return "";
-
-    return (
-      `O back-end ainda não possui estas rotas: ` +
-      `${itens.join(", ")}. ` +
-      "Esses dados estão sendo calculados e guardados " +
-      "neste navegador até a integração ser concluída."
-    );
-  }
-
-  // ------------------------------------------------------------
-  // CONSULTA DOS ITENS DA VENDA
-  // ------------------------------------------------------------
-
   async function itensDaVenda(idVenda) {
-    
     const vendas = await obterVendas();
 
     const v = vendas.find(
-        (x) => String(x.id_venda) === String(idVenda),
+      (x) => String(x.id_venda) === String(idVenda)
     );
 
-    if (!v) {
-        return null;
-    }
+    if (!v) return null;
 
     const itens = (v.itens || []).map((item) => ({
-        nome: item.nome_produto,
-        qtd: Number(item.quantidade),
-        preco: Number(item.preco_unitario),
-        subtotal: Number(item.subtotal),
+      nome: item.nome_produto,
+      qtd: Number(item.quantidade),
+      preco: Number(item.preco_unitario),
+      subtotal: Number(item.subtotal),
     }));
 
     return {
-        itens: itens,
-        valor_total: Number(v.valor_total),
-        data: v.data_venda,
+      itens,
+      valor_total: Number(v.valor_total),
+      data: v.data_venda,
     };
-}
+  }
 
-  // ------------------------------------------------------------
-  // EXPORTAÇÃO DOS SERVIÇOS
-  // ------------------------------------------------------------
+  function avisoLocal() {
+    return "";
+  }
 
   FC.clientes = {
     itensDaVenda,

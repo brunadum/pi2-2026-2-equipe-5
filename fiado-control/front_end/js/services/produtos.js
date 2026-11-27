@@ -1,143 +1,192 @@
 // Catálogo de produtos (namespace global FC.produtos).
 //
-// Os produtos ficam no servidor (GET/POST/PUT /produtos), compartilhados por todos os usuários.
-//   • Leitura (listar/buscar/porNome) é síncrona e usa uma cópia em memória; chame `carregar()` para atualizá-la.
-//   • `salvar()` cria (POST) ou atualiza o preço (PUT, somente gerente) e atualiza a cópia em memória.
-//   • "Mais usados primeiro" é uma preferência deste navegador (o servidor não guarda contagem de uso).
-//   • Se a rota /produtos não existir no servidor (`naoImplementado`), o catálogo volta a ficar só neste
-//     navegador (localStorage) — `modoLocal()` avisa a tela.
+// Produtos armazenados exclusivamente no backend.
+// GET  /produtos
+// POST /produtos
+// PUT  /produtos/{id}
+//
+// O armazenamento local é utilizado somente para
+// a preferência de ordenação dos produtos mais usados.
+
 (function () {
   const FC = (window.FC = window.FC || {});
   const { normalizar, arredondar } = FC.format;
 
-  const CHAVE = "fiadoControl.produtos.v1";      // catálogo local (modo de reserva)
-  const CHAVE_USOS = "fiadoControl.produtos.usos.v1"; // contagem de uso por nome (preferência local)
+  const CHAVE_USOS = "fiadoControl.produtos.usos.v1";
 
-  let cache = [];      // produtos do servidor: { id, nome, preco, quantidade_estoque }
-  let local = false;   // true quando o servidor não possui /produtos
+  let cache = [];
   let carregando = null;
 
-  // ------------------------------------------------------------ armazenamento local
-
-  function lerJson(chave, padrao) {
-    try { return JSON.parse(localStorage.getItem(chave)) ?? padrao; } catch { return padrao; }
+  // Preferência local de utilização dos produtos.
+  function usos() {
+    try {
+      return JSON.parse(
+        localStorage.getItem(CHAVE_USOS)
+      ) || {};
+    } catch {
+      return {};
+    }
   }
-  function gravarJson(chave, valor) {
-    try { localStorage.setItem(chave, JSON.stringify(valor)); } catch { /* armazenamento indisponível */ }
-  }
-  const lerLocal = () => {
-    const s = lerJson(CHAVE, {});
-    return { itens: Array.isArray(s.itens) ? s.itens : [], seq: s.seq || 0 };
-  };
-  const usos = () => lerJson(CHAVE_USOS, {});
 
-  // ------------------------------------------------------------ leitura (síncrona)
-
-  const base = () => (local ? lerLocal().itens : cache);
-
-  // Mais usados primeiro; depois ordem alfabética.
+  // Lista os produtos mais utilizados primeiro.
   function listar() {
     const u = usos();
-    const n = (p) => u[normalizar(p.nome)] || p.usos || 0;
-    return base().slice().sort((a, b) => n(b) - n(a) || a.nome.localeCompare(b.nome, "pt-BR"));
+
+    const n = (p) => u[normalizar(p.nome)] || 0;
+
+    return cache.slice().sort(
+      (a, b) =>
+        n(b) - n(a) ||
+        a.nome.localeCompare(b.nome, "pt-BR")
+    );
   }
 
+  // Pesquisa produtos pelo nome.
   function buscar(termo) {
     const t = normalizar(termo);
     const todos = listar();
-    return t ? todos.filter((p) => normalizar(p.nome).includes(t)) : todos;
+
+    return t
+      ? todos.filter((p) =>
+          normalizar(p.nome).includes(t)
+        )
+      : todos;
   }
 
-  const porNome = (nome) => listar().find((p) => normalizar(p.nome) === normalizar(nome)) || null;
-  const modoLocal = () => local;
+  // Localiza um produto pelo nome completo.
+  function porNome(nome) {
+    return listar().find(
+      (p) => normalizar(p.nome) === normalizar(nome)
+    ) || null;
+  }
 
-  // ------------------------------------------------------------ servidor
+  // Padroniza os dados retornados pela API.
+  function normalizarItem(p) {
+    return {
+      id: p.id_produto ?? p.id,
+      nome: String(p.nome || ""),
+      preco: Number(p.preco ?? p.preco_venda ?? 0),
+      quantidade_estoque: p.quantidade_estoque ?? null,
+    };
+  }
 
-  const normalizarItem = (p) => ({
-    id: p.id,
-    nome: String(p.nome || ""),
-    preco: Number(p.preco ?? p.preco_venda ?? 0),
-    quantidade_estoque: p.quantidade_estoque ?? null,
-  });
-
-  // Busca o catálogo no servidor. Nunca lança: em erro mantém a cópia anterior.
+  // Carrega os produtos do backend.
   function carregar() {
     if (carregando) return carregando;
+
     carregando = (async () => {
       try {
         const r = await FC.api.request("/produtos");
-        const lista = Array.isArray(r) ? r : r?.produtos;
-        cache = (Array.isArray(lista) ? lista : []).map(normalizarItem);
-        local = false;
-      } catch (e) {
-        if (e && e.naoImplementado) local = true;
-        // Outros erros (rede, sessão): mantém o que já se tinha; a venda continua possível.
+
+        const lista = Array.isArray(r)
+          ? r
+          : r?.produtos;
+
+        if (!Array.isArray(lista)) {
+          throw new Error(
+            "Resposta inválida ao consultar produtos."
+          );
+        }
+
+        cache = lista.map(normalizarItem);
+
+        return listar();
+
       } finally {
         carregando = null;
       }
-      return listar();
     })();
+
     return carregando;
   }
 
-  // Cria ou atualiza (mesmo nome = mesmo produto) e devolve o registro.
-  // Falhas não interrompem a venda: o chamador decide se mostra aviso.
+  // Cadastra ou atualiza um produto no backend.
   async function salvar({ nome, preco }) {
     nome = nome.trim();
     preco = arredondar(preco);
 
-    if (local) return salvarLocal(nome, preco);
-
     const existente = porNome(nome);
+
     try {
       if (existente) {
-        if (arredondar(existente.preco) === preco) return existente;
-        const r = await FC.api.request(`/produtos/${existente.id}`, { method: "PUT", body: { nome, preco } });
+
+        if (arredondar(existente.preco) === preco) {
+          return existente;
+        }
+
+        const r = await FC.api.request(
+          `/produtos/${encodeURIComponent(existente.id)}`,
+          {
+            method: "PUT",
+            body: { nome, preco },
+          }
+        );
+
         const item = normalizarItem(r);
-        cache = cache.map((p) => (p.id === item.id ? item : p));
+
+        cache = cache.map(
+          (p) => p.id === item.id ? item : p
+        );
+
         return item;
       }
-      const r = await FC.api.request("/produtos", { method: "POST", body: { nome, preco } });
+
+      const r = await FC.api.request("/produtos", {
+        method: "POST",
+        body: { nome, preco },
+      });
+
       const item = normalizarItem(r);
-      cache = [...cache.filter((p) => p.id !== item.id), item];
+
+      cache = [
+        ...cache.filter((p) => p.id !== item.id),
+        item,
+      ];
+
       return item;
+
     } catch (e) {
-      if (e && e.naoImplementado) { local = true; return salvarLocal(nome, preco); }
-      // Outro usuário já cadastrou o mesmo nome: apenas atualiza a cópia.
-      if (e && e.codigo === "produto_duplicado") { await carregar(); return porNome(nome); }
+
+      if (e && e.codigo === "produto_duplicado") {
+        await carregar();
+
+        const produto = porNome(nome);
+
+        if (produto) return produto;
+      }
+
       throw e;
     }
   }
 
-  function salvarLocal(nome, preco) {
-    const dados = lerLocal();
-    const existente = dados.itens.find((p) => normalizar(p.nome) === normalizar(nome));
-    if (existente) {
-      existente.nome = nome;
-      existente.preco = preco;
-      gravarJson(CHAVE, dados);
-      return existente;
-    }
-    const novo = { id: ++dados.seq, nome, preco, usos: 0 };
-    dados.itens.push(novo);
-    gravarJson(CHAVE, dados);
-    return novo;
-  }
-
+  // Registra somente a preferência de uso no navegador.
   function registrarUso(nome) {
     const u = usos();
     const k = normalizar(nome);
+
     u[k] = (u[k] || 0) + 1;
-    gravarJson(CHAVE_USOS, u);
+
+    try {
+      localStorage.setItem(
+        CHAVE_USOS,
+        JSON.stringify(u)
+      );
+    } catch {
+      // Preferência indisponível.
+    }
   }
 
-  // O servidor não oferece exclusão; no modo local apaga do navegador.
-  function remover(id) {
-    if (!local) return;
-    const dados = lerLocal();
-    dados.itens = dados.itens.filter((p) => p.id !== id);
-    gravarJson(CHAVE, dados);
-  }
+  FC.produtos = {
+    carregar,
+    listar,
+    buscar,
+    porNome,
+    salvar,
+    registrarUso,
 
-  FC.produtos = { carregar, listar, buscar, porNome, salvar, registrarUso, remover, modoLocal };
+    // Mantidos para compatibilidade com a interface.
+    remover: () => {},
+    modoLocal: () => false,
+  };
+
 })();
