@@ -671,21 +671,36 @@ def _somar_meses(data, meses):
     dia = min(data.day, calendar.monthrange(ano, mes)[1])
     return date(ano, mes, dia)
 
-
 def _consultar_vendas(filtros=None):
     filtros = filtros or {}
     condicoes = []
     parametros = []
+
+    # Filtros de cliente, status e modalidade.
     for campo in ('id_cliente', 'status', 'modalidade'):
         if campo in filtros:
             condicoes.append(f'v.{campo} = %s')
             parametros.append(filtros[campo])
-    for campo, operador in (('data_inicio', '>='), ('data_fim', '<=')):
+
+    # Filtros de data.
+    for campo, operador in (
+        ('data_inicio', '>='),
+        ('data_fim', '<=')
+    ):
         if campo in filtros:
-            condicoes.append(f'v.data_venda::date {operador} %s')
+            condicoes.append(
+                f'v.data_venda::date {operador} %s'
+            )
             parametros.append(filtros[campo])
-    where = ' WHERE ' + ' AND '.join(condicoes) if condicoes else ''
+
+    where = (
+        ' WHERE ' + ' AND '.join(condicoes)
+        if condicoes else ''
+    )
+
     with connection.cursor() as cursor:
+
+        # Consulta as vendas.
         cursor.execute("""
             SELECT
                 v.id_venda,
@@ -704,6 +719,50 @@ def _consultar_vendas(filtros=None):
         """ + where + ' ORDER BY v.id_venda', parametros)
 
         registros = cursor.fetchall()
+
+        # NOVO: identifica as vendas encontradas.
+        ids_vendas = [registro[0] for registro in registros]
+
+        itens_por_venda = {}
+
+        # NOVO: consulta os produtos no PostgreSQL.
+        if ids_vendas:
+            cursor.execute("""
+                SELECT
+                    id_item,
+                    id_venda,
+                    nome_produto,
+                    quantidade,
+                    preco_unitario,
+                    subtotal
+                FROM venda_item
+                WHERE id_venda = ANY(%s)
+                ORDER BY id_venda, id_item
+            """, [ids_vendas])
+
+            registros_itens = cursor.fetchall()
+
+            for (
+                id_item,
+                id_venda,
+                nome_produto,
+                quantidade,
+                preco_unitario,
+                subtotal,
+            ) in registros_itens:
+
+                item = {
+                    "id_item": id_item,
+                    "nome_produto": nome_produto,
+                    "quantidade": quantidade,
+                    "preco_unitario": float(preco_unitario),
+                    "subtotal": float(subtotal),
+                }
+
+                if id_venda not in itens_por_venda:
+                    itens_por_venda[id_venda] = []
+
+                itens_por_venda[id_venda].append(item)
 
     vendas = []
 
@@ -725,15 +784,22 @@ def _consultar_vendas(filtros=None):
             "id_cliente": id_cliente,
             "nome_cliente": nome_cliente,
             "id_usuario": id_usuario,
-            "data_venda": data_venda.isoformat() if data_venda else None,
+            "data_venda": (
+                data_venda.isoformat()
+                if data_venda else None
+            ),
             "valor_total": float(valor_total),
             "modalidade": modalidade,
             "status": status,
             "motivo_rejeicao": motivo_rejeicao,
             "autorizado_por": autorizado_por,
+
+            # NOVO: retorna os produtos comprados.
+            "itens": itens_por_venda.get(id_venda, []),
         })
 
     return vendas
+
 
 def _registrar_venda(request):
     dados = _ler_json(request)

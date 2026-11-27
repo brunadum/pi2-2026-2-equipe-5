@@ -1226,20 +1226,31 @@
   // CONSULTA DOS ITENS DA VENDA
   // ------------------------------------------------------------
 
-  function itensDaVenda(idVenda) {
-    const v = lerStore().vendas.find(
-      (x) =>
-        String(x.id_venda) === String(idVenda),
+  async function itensDaVenda(idVenda) {
+    
+    const vendas = await obterVendas();
+
+    const v = vendas.find(
+        (x) => String(x.id_venda) === String(idVenda),
     );
 
-    return v
-      ? {
-          itens: v.itens || [],
-          valor_total: v.valor_total,
-          data: v.data,
-        }
-      : null;
-  }
+    if (!v) {
+        return null;
+    }
+
+    const itens = (v.itens || []).map((item) => ({
+        nome: item.nome_produto,
+        qtd: Number(item.quantidade),
+        preco: Number(item.preco_unitario),
+        subtotal: Number(item.subtotal),
+    }));
+
+    return {
+        itens: itens,
+        valor_total: Number(v.valor_total),
+        data: v.data_venda,
+    };
+}
 
   // ------------------------------------------------------------
   // EXPORTAÇÃO DOS SERVIÇOS
